@@ -39,7 +39,11 @@ function buildSystemPrompt(language: string): string {
 3. 店内の雰囲気（2〜3文）
 4. 料理紹介（メニューごとに料理名＋短コメントのセット）
 5. 総評・おすすめポイント（2〜3文）
-6. ${basicInfoLabel}`;
+6. ${basicInfoLabel}
+7. Naver SEO最適化ハッシュタグ（記事の末尾に追加）
+   - 8〜10個、韓国語のみ（日本語・英語は混在させない）
+   - 構成：エリア系3〜4個・ジャンル系3〜4個・属性/シーン系2〜3個
+   - 1行にまとめて出力する（例：#시부야맛집 #도쿄여행 #이자카야 ...）`;
 }
 
 export async function POST(req: Request) {

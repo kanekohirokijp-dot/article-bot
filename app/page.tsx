@@ -48,11 +48,15 @@ const LANGUAGES: { value: Language; label: string }[] = [
 export default function Home() {
   const [step, setStep] = useState(1);
   const [storeInfo, setStoreInfo] = useState("");
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([
+    { id: 1, source: "食べログ", text: "" },
+    { id: 2, source: "食べログ", text: "" },
+    { id: 3, source: "食べログ", text: "" },
+  ]);
   const [memo, setMemo] = useState("");
   const [tone, setTone] = useState<Tone>("casual");
   const [language, setLanguage] = useState<Language>("japanese");
-  const [nextReviewId, setNextReviewId] = useState(1);
+  const [nextReviewId, setNextReviewId] = useState(4);
   const [copied, setCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +159,8 @@ export default function Home() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-medium text-gray-700">
-                    口コミ（任意）
+                    口コミ
+                    <span className="text-red-500 ml-1">*</span>
                   </label>
                   <button
                     onClick={addReview}
@@ -165,14 +170,8 @@ export default function Home() {
                   </button>
                 </div>
 
-                {reviews.length === 0 && (
-                  <p className="text-sm text-gray-400 py-2">
-                    「口コミを追加」ボタンで複数の口コミを追加できます
-                  </p>
-                )}
-
                 <div className="space-y-3">
-                  {reviews.map((review) => (
+                  {reviews.map((review, index) => (
                     <div
                       key={review.id}
                       className="rounded-xl border border-gray-200 p-3 space-y-2"
@@ -191,12 +190,14 @@ export default function Home() {
                             </option>
                           ))}
                         </select>
-                        <button
-                          onClick={() => removeReview(review.id)}
-                          className="ml-auto text-sm text-red-400 hover:text-red-600"
-                        >
-                          削除
-                        </button>
+                        {index >= 3 && (
+                          <button
+                            onClick={() => removeReview(review.id)}
+                            className="ml-auto text-sm text-red-400 hover:text-red-600"
+                          >
+                            削除
+                          </button>
+                        )}
                       </div>
                       <textarea
                         value={review.text}
@@ -210,6 +211,12 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+
+                {!reviews.slice(0, 3).every((r) => r.text.trim()) && (
+                  <p className="text-sm text-red-500 mt-2">
+                    口コミを3件以上入力してください
+                  </p>
+                )}
               </div>
 
               <div>
@@ -227,7 +234,7 @@ export default function Home() {
 
               <button
                 onClick={() => setStep(2)}
-                disabled={!storeInfo.trim()}
+                disabled={!storeInfo.trim() || !reviews.slice(0, 3).every((r) => r.text.trim())}
                 className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 次へ：記事スタイルを選ぶ →
