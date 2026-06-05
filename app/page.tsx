@@ -210,6 +210,12 @@ export default function Home() {
   // Strip usage marker from completion for display and copy
   const displayCompletion = completion.replace(USAGE_REGEX, "");
 
+  // For the text tab: convert markdown links to "text: URL" readable format
+  const textDisplay = displayCompletion.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    "$1: $2"
+  );
+
   useEffect(() => {
     setStores(lsGetStores());
     setHistory(lsGetHistory());
@@ -396,13 +402,19 @@ export default function Home() {
 
   function renderNaverPreview(text: string) {
     function processInline(line: string) {
-      return line.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
-        part.startsWith("**") && part.endsWith("**") ? (
-          <strong key={i}>{part.slice(2, -2)}</strong>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      );
+      return line.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/).map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**"))
+          return <strong key={i}>{part.slice(2, -2)}</strong>;
+        const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (link)
+          return (
+            <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer"
+              style={{ color: "#1e88e5", textDecoration: "underline" }}>
+              {link[1]}
+            </a>
+          );
+        return <span key={i}>{part}</span>;
+      });
     }
 
     return text.split("\n").map((line, i) => {
@@ -822,7 +834,7 @@ export default function Home() {
               {/* Text tab (also shown during streaming) */}
               {completion && (isLoading || activeTab === "text") && (
                 <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
-                  {displayCompletion}
+                  {textDisplay}
                   {isLoading && (
                     <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                   )}
