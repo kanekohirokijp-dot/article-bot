@@ -131,6 +131,7 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [viewingHistory, setViewingHistory] = useState<ArticleHistory | null>(null);
   const [historyCopied, setHistoryCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<"text" | "preview">("text");
 
   const pendingHistoryRef = useRef<{
     storeId: string;
@@ -220,6 +221,7 @@ export default function Home() {
 
   async function handleGenerate() {
     setCompletion("");
+    setActiveTab("text");
     setStep(3);
     setTimeout(() => {
       outputRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -276,6 +278,48 @@ export default function Home() {
     await navigator.clipboard.writeText(completion);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function renderNaverPreview(text: string) {
+    function processInline(line: string) {
+      return line.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+        part.startsWith("**") && part.endsWith("**") ? (
+          <strong key={i}>{part.slice(2, -2)}</strong>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      );
+    }
+
+    return text.split("\n").map((line, i) => {
+      const t = line.trim();
+      if (!t) return <div key={i} style={{ height: "12px" }} />;
+      if (/^# /.test(t))
+        return (
+          <h1 key={i} style={{ fontSize: "20px", fontWeight: 700, color: "#1a1a1a", marginBottom: "16px" }}>
+            {t.slice(2)}
+          </h1>
+        );
+      if (/^## /.test(t))
+        return (
+          <h2 key={i} style={{ fontSize: "17px", fontWeight: 700, color: "#1a1a1a", marginTop: "28px", marginBottom: "8px" }}>
+            {t.slice(3)}
+          </h2>
+        );
+      if (t === "---")
+        return <hr key={i} style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "20px 0" }} />;
+      if (/^(#\S+ *)+$/.test(t))
+        return (
+          <p key={i} style={{ color: "#1e88e5", fontSize: "14px", marginTop: "24px", lineHeight: 1.9 }}>
+            {t}
+          </p>
+        );
+      return (
+        <p key={i} style={{ fontSize: "15px", color: "#333", marginBottom: "12px", lineHeight: 1.9 }}>
+          {processInline(t)}
+        </p>
+      );
+    });
   }
 
   function getToneLabel(v: string) {
@@ -568,6 +612,7 @@ export default function Home() {
             ref={outputRef}
             className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
           >
+            {/* Header */}
             <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <span
@@ -593,6 +638,26 @@ export default function Home() {
               )}
             </div>
 
+            {/* Tabs — appear only after streaming finishes */}
+            {completion && !isLoading && (
+              <div className="flex border-b border-gray-100">
+                {(["text", "preview"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                      activeTab === tab
+                        ? "text-indigo-600 border-b-2 border-indigo-600"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {tab === "text" ? "テキスト" : "Naverプレビュー"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
             <div className="px-6 py-5">
               {isLoading && !completion && (
                 <div className="flex items-center gap-3 text-gray-500">
@@ -605,13 +670,32 @@ export default function Home() {
                 </div>
               )}
 
-              {completion && (
+              {/* Text tab (also shown during streaming) */}
+              {completion && (isLoading || activeTab === "text") && (
                 <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
                   {completion}
                   {isLoading && (
                     <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                   )}
                 </div>
+              )}
+
+              {/* Naver preview tab */}
+              {completion && !isLoading && activeTab === "preview" && (
+                <>
+                  <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');`}</style>
+                  <div
+                    style={{
+                      fontFamily: "'Noto Sans KR', sans-serif",
+                      maxWidth: "680px",
+                      margin: "0 auto",
+                      background: "#fff",
+                      lineHeight: 1.9,
+                    }}
+                  >
+                    {renderNaverPreview(completion)}
+                  </div>
+                </>
               )}
             </div>
 
