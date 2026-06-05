@@ -1,4 +1,4 @@
-import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
 
 export const maxDuration = 60;
@@ -61,7 +61,7 @@ ${toneMap[tone] || toneMap.casual}
 ${languageMap[language] || languageMap.korean}`;
 
   const result = streamText({
-    model: google("gemini-2.0-flash"),
+    model: anthropic("claude-sonnet-4-5"),
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
     maxOutputTokens: 4000,
