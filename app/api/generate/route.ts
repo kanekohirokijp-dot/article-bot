@@ -60,7 +60,7 @@ ${memo ? `【取材メモ・補足情報】\n${memo}\n` : ""}
 ${toneMap[tone] || toneMap.casual}
 
 【出力言語】
-${languageMap[language] || languageMap.korean}`;
+${languageMap[language] || languageMap.japanese}`;
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-5"),

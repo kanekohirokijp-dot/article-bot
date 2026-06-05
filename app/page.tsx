@@ -51,7 +51,7 @@ export default function Home() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [memo, setMemo] = useState("");
   const [tone, setTone] = useState<Tone>("casual");
-  const [language, setLanguage] = useState<Language>("korean");
+  const [language, setLanguage] = useState<Language>("japanese");
   const [nextReviewId, setNextReviewId] = useState(1);
   const [copied, setCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
