@@ -102,16 +102,6 @@ function lsSaveHistory(entry: ArticleHistory) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
-function extractStoreName(storeInfo: string): string {
-  const firstLine = storeInfo
-    .split("\n")
-    .map((l) => l.trim())
-    .find(Boolean);
-  if (firstLine && firstLine.length <= 30) return firstLine;
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `店舗 ${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -121,6 +111,7 @@ function formatDateTime(iso: string): string {
 
 export default function Home() {
   const [step, setStep] = useState(1);
+  const [storeName, setStoreName] = useState("");
   const [storeInfo, setStoreInfo] = useState("");
   const [reviews, setReviews] = useState<Review[]>([
     { id: 1, source: "食べログ", text: "" },
@@ -196,6 +187,7 @@ export default function Home() {
     const store = stores.find((s) => s.id === storeId);
     if (!store) return;
     setSelectedStoreId(storeId);
+    setStoreName(store.name);
     setStoreInfo(store.storeInfo);
     const loaded: Review[] = store.reviews.map((r, i) => ({
       id: i + 1,
@@ -215,7 +207,7 @@ export default function Home() {
     const now = new Date().toISOString();
     lsSaveStore({
       id: selectedStoreId,
-      name: extractStoreName(storeInfo) || existing?.name || "店舗",
+      name: storeName || existing?.name || "店舗",
       storeInfo,
       reviews: reviews
         .filter((r) => r.text.trim())
@@ -244,12 +236,10 @@ export default function Home() {
 
     const now = new Date().toISOString();
     let storeId: string;
-    let storeName: string;
 
     if (selectedStoreId) {
       storeId = selectedStoreId;
       const existing = stores.find((s) => s.id === selectedStoreId);
-      storeName = existing?.name || extractStoreName(storeInfo);
       lsSaveStore({
         id: storeId,
         name: storeName,
@@ -262,7 +252,6 @@ export default function Home() {
       });
     } else {
       storeId = crypto.randomUUID();
-      storeName = extractStoreName(storeInfo);
       lsSaveStore({
         id: storeId,
         name: storeName,
@@ -277,7 +266,7 @@ export default function Home() {
     }
     setStores(lsGetStores());
 
-    pendingHistoryRef.current = { storeId, storeName, tone, language };
+    pendingHistoryRef.current = { storeId, storeName: storeName, tone, language };
 
     await complete("", { body });
   }
@@ -362,6 +351,20 @@ export default function Home() {
                     )}
                   </>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  店名
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
+                  placeholder="例：KAMERA、リバーサイドヤオヤ"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
               </div>
 
               <div>
@@ -457,6 +460,7 @@ export default function Home() {
               <button
                 onClick={() => setStep(2)}
                 disabled={
+                  !storeName.trim() ||
                   !storeInfo.trim() ||
                   !reviews.slice(0, 3).every((r) => r.text.trim())
                 }
