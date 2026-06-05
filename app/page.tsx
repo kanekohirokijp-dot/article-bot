@@ -355,9 +355,41 @@ export default function Home() {
     await complete("", { body });
   }
 
+  function markdownToHtml(text: string): string {
+    function processInlineMd(line: string): string {
+      return line
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    }
+
+    return text
+      .split("\n")
+      .map((line) => {
+        const t = line.trim();
+        if (!t) return "<br>";
+        if (/^# /.test(t)) return `<h1>${processInlineMd(t.slice(2))}</h1>`;
+        if (/^## /.test(t)) return `<h2>${processInlineMd(t.slice(3))}</h2>`;
+        if (t === "---") return "<hr>";
+        if (/^(#\S+ *)+$/.test(t))
+          return `<span style="color:#1e88e5">${t}</span><br>`;
+        return `${processInlineMd(t)}<br>`;
+      })
+      .join("\n");
+  }
+
   async function copyToClipboard() {
     if (!displayCompletion) return;
-    await navigator.clipboard.writeText(displayCompletion);
+    try {
+      const html = markdownToHtml(displayCompletion);
+      const htmlBlob = new Blob([html], { type: "text/html" });
+      const textBlob = new Blob([displayCompletion], { type: "text/plain" });
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob }),
+      ]);
+    } catch {
+      // Fallback to plain text if ClipboardItem is not supported
+      await navigator.clipboard.writeText(displayCompletion);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
