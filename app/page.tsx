@@ -88,15 +88,16 @@ export default function Home() {
       outputRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
 
-    await complete("", {
-      body: {
-        storeInfo,
-        reviews: reviews.filter((r) => r.text.trim()),
-        memo,
-        tone,
-        language,
-      },
-    });
+    const body = {
+      storeInfo,
+      reviews: reviews.filter((r) => r.text.trim()),
+      memo,
+      tone,
+      language,
+    };
+    console.log("[page] sending to API:", body);
+
+    await complete("", { body });
   }
 
   async function copyToClipboard() {
