@@ -1,7 +1,7 @@
 "use client";
 
 import { useCompletion } from "@ai-sdk/react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 type ReviewSource = "食べログ" | "Google" | "Instagram" | "Retty" | "その他";
 type Tone = "casual" | "editorial" | "passionate";
@@ -12,6 +12,29 @@ interface Review {
   source: ReviewSource;
   text: string;
 }
+
+type Store = {
+  id: string;
+  name: string;
+  storeInfo: string;
+  reviews: { source: string; text: string }[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ArticleHistory = {
+  id: string;
+  storeId: string;
+  storeName: string;
+  tone: string;
+  language: string;
+  article: string;
+  createdAt: string;
+};
+
+const STORES_KEY = "article-bot-stores";
+const HISTORY_KEY = "article-bot-history";
+const MAX_HISTORY = 50;
 
 const REVIEW_SOURCES: ReviewSource[] = [
   "食べログ",
@@ -45,6 +68,57 @@ const LANGUAGES: { value: Language; label: string }[] = [
   { value: "both", label: "両方" },
 ];
 
+function lsGetStores(): Store[] {
+  try {
+    return JSON.parse(localStorage.getItem(STORES_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function lsSaveStore(store: Store) {
+  const stores = lsGetStores();
+  const idx = stores.findIndex((s) => s.id === store.id);
+  if (idx >= 0) {
+    stores[idx] = store;
+  } else {
+    stores.push(store);
+  }
+  localStorage.setItem(STORES_KEY, JSON.stringify(stores));
+}
+
+function lsGetHistory(): ArticleHistory[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function lsSaveHistory(entry: ArticleHistory) {
+  const history = lsGetHistory();
+  history.unshift(entry);
+  if (history.length > MAX_HISTORY) history.splice(MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function extractStoreName(storeInfo: string): string {
+  const firstLine = storeInfo
+    .split("\n")
+    .map((l) => l.trim())
+    .find(Boolean);
+  if (firstLine && firstLine.length <= 30) return firstLine;
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `店舗 ${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function Home() {
   const [step, setStep] = useState(1);
   const [storeInfo, setStoreInfo] = useState("");
@@ -60,10 +134,43 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
 
+  const [stores, setStores] = useState<Store[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  const [history, setHistory] = useState<ArticleHistory[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [viewingHistory, setViewingHistory] = useState<ArticleHistory | null>(null);
+  const [historyCopied, setHistoryCopied] = useState(false);
+
+  const pendingHistoryRef = useRef<{
+    storeId: string;
+    storeName: string;
+    tone: Tone;
+    language: Language;
+  } | null>(null);
+
   const { completion, isLoading, complete, setCompletion } = useCompletion({
     api: "/api/generate",
     streamProtocol: "text",
   });
+
+  useEffect(() => {
+    setStores(lsGetStores());
+    setHistory(lsGetHistory());
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && completion && pendingHistoryRef.current) {
+      const entry: ArticleHistory = {
+        id: crypto.randomUUID(),
+        ...pendingHistoryRef.current,
+        article: completion,
+        createdAt: new Date().toISOString(),
+      };
+      lsSaveHistory(entry);
+      setHistory(lsGetHistory());
+      pendingHistoryRef.current = null;
+    }
+  }, [isLoading, completion]);
 
   function addReview() {
     setReviews((prev) => [
@@ -85,6 +192,40 @@ export default function Home() {
     );
   }
 
+  function selectStore(storeId: string) {
+    const store = stores.find((s) => s.id === storeId);
+    if (!store) return;
+    setSelectedStoreId(storeId);
+    setStoreInfo(store.storeInfo);
+    const loaded: Review[] = store.reviews.map((r, i) => ({
+      id: i + 1,
+      source: r.source as ReviewSource,
+      text: r.text,
+    }));
+    while (loaded.length < 3) {
+      loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+    }
+    setReviews(loaded);
+    setNextReviewId(loaded.length + 1);
+  }
+
+  function saveCurrentStore() {
+    if (!selectedStoreId) return;
+    const existing = stores.find((s) => s.id === selectedStoreId);
+    const now = new Date().toISOString();
+    lsSaveStore({
+      id: selectedStoreId,
+      name: extractStoreName(storeInfo) || existing?.name || "店舗",
+      storeInfo,
+      reviews: reviews
+        .filter((r) => r.text.trim())
+        .map((r) => ({ source: r.source, text: r.text })),
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    });
+    setStores(lsGetStores());
+  }
+
   async function handleGenerate() {
     setCompletion("");
     setStep(3);
@@ -101,6 +242,43 @@ export default function Home() {
     };
     console.log("[page] sending to API:", body);
 
+    const now = new Date().toISOString();
+    let storeId: string;
+    let storeName: string;
+
+    if (selectedStoreId) {
+      storeId = selectedStoreId;
+      const existing = stores.find((s) => s.id === selectedStoreId);
+      storeName = existing?.name || extractStoreName(storeInfo);
+      lsSaveStore({
+        id: storeId,
+        name: storeName,
+        storeInfo,
+        reviews: reviews
+          .filter((r) => r.text.trim())
+          .map((r) => ({ source: r.source, text: r.text })),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      });
+    } else {
+      storeId = crypto.randomUUID();
+      storeName = extractStoreName(storeInfo);
+      lsSaveStore({
+        id: storeId,
+        name: storeName,
+        storeInfo,
+        reviews: reviews
+          .filter((r) => r.text.trim())
+          .map((r) => ({ source: r.source, text: r.text })),
+        createdAt: now,
+        updatedAt: now,
+      });
+      setSelectedStoreId(storeId);
+    }
+    setStores(lsGetStores());
+
+    pendingHistoryRef.current = { storeId, storeName, tone, language };
+
     await complete("", { body });
   }
 
@@ -109,6 +287,13 @@ export default function Home() {
     await navigator.clipboard.writeText(completion);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function getToneLabel(v: string) {
+    return TONES.find((t) => t.value === v)?.label ?? v;
+  }
+  function getLangLabel(v: string) {
+    return LANGUAGES.find((l) => l.value === v)?.label ?? v;
   }
 
   return (
@@ -142,6 +327,43 @@ export default function Home() {
 
           {step === 1 && (
             <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
+              {/* Saved stores */}
+              <div className="rounded-xl border border-gray-200 p-4 bg-gray-50 space-y-2">
+                <p className="text-sm font-medium text-gray-700">保存済み店舗から選ぶ</p>
+                {stores.length === 0 ? (
+                  <p className="text-sm text-gray-400">保存済みの店舗はありません</p>
+                ) : (
+                  <>
+                    <select
+                      value={selectedStoreId ?? ""}
+                      onChange={(e) => {
+                        if (e.target.value === "") {
+                          setSelectedStoreId(null);
+                        } else {
+                          selectStore(e.target.value);
+                        }
+                      }}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                    >
+                      <option value="">（新規作成）</option>
+                      {stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedStoreId && (
+                      <button
+                        onClick={saveCurrentStore}
+                        className="w-full py-2 rounded-lg border border-indigo-300 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition-colors"
+                      >
+                        更新して保存
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   店舗情報を貼り付けてください
@@ -234,7 +456,10 @@ export default function Home() {
 
               <button
                 onClick={() => setStep(2)}
-                disabled={!storeInfo.trim() || !reviews.slice(0, 3).every((r) => r.text.trim())}
+                disabled={
+                  !storeInfo.trim() ||
+                  !reviews.slice(0, 3).every((r) => r.text.trim())
+                }
                 className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 次へ：記事スタイルを選ぶ →
@@ -387,27 +612,126 @@ export default function Home() {
             </div>
 
             {completion && !isLoading && (
-              <div className="px-6 pb-5 flex gap-2">
-                <button
-                  onClick={copyToClipboard}
-                  className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
-                >
-                  {copied ? "✓ コピーしました" : "📋 記事をコピー"}
-                </button>
+              <div className="px-6 pb-5 space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
+                  >
+                    {copied ? "✓ コピーしました" : "📋 記事をコピー"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCompletion("");
+                      setStep(2);
+                    }}
+                    className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    再生成
+                  </button>
+                </div>
                 <button
                   onClick={() => {
-                    setCompletion("");
-                    setStep(2);
+                    setHistory(lsGetHistory());
+                    setViewingHistory(null);
+                    setShowHistory(true);
                   }}
-                  className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                  className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
                 >
-                  再生成
+                  履歴を見る
                 </button>
               </div>
             )}
           </section>
         )}
       </main>
+
+      {/* History Modal */}
+      {showHistory && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowHistory(false);
+              setViewingHistory(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <h2 className="font-semibold text-gray-800">生成履歴</h2>
+              <button
+                onClick={() => {
+                  setShowHistory(false);
+                  setViewingHistory(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            {viewingHistory ? (
+              <>
+                <div className="px-6 py-3 border-b border-gray-100 flex-shrink-0">
+                  <button
+                    onClick={() => setViewingHistory(null)}
+                    className="text-indigo-600 text-sm hover:text-indigo-800"
+                  >
+                    ← 一覧に戻る
+                  </button>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {viewingHistory.storeName} · {getToneLabel(viewingHistory.tone)} · {getLangLabel(viewingHistory.language)} · {formatDateTime(viewingHistory.createdAt)}
+                  </p>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
+                    {viewingHistory.article}
+                  </p>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(viewingHistory.article);
+                      setHistoryCopied(true);
+                      setTimeout(() => setHistoryCopied(false), 2000);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+                  >
+                    {historyCopied ? "✓ コピーしました" : "📋 この記事をコピー"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                {history.length === 0 ? (
+                  <div className="px-6 py-10 text-center text-gray-400 text-sm">
+                    履歴はありません
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {history.map((entry) => (
+                      <li key={entry.id}>
+                        <button
+                          className="w-full px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+                          onClick={() => setViewingHistory(entry)}
+                        >
+                          <p className="font-medium text-sm text-gray-800">
+                            {entry.storeName}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {getToneLabel(entry.tone)} · {getLangLabel(entry.language)} · {formatDateTime(entry.createdAt)}
+                          </p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
