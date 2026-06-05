@@ -98,7 +98,30 @@ ${resolvedLanguageInstruction}`;
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
     maxOutputTokens: 4000,
+    onFinish: ({ usage }) => {
+      console.log(`[route] tokens: input=${usage.inputTokens} output=${usage.outputTokens}`);
+    },
   });
 
-  return result.toTextStreamResponse();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of result.textStream) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      const usage = await result.usage;
+      controller.enqueue(
+        encoder.encode(`\n__USAGE__:${usage.inputTokens ?? 0}:${usage.outputTokens ?? 0}`)
+      );
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Input-Tokens": "0",
+      "X-Output-Tokens": "0",
+    },
+  });
 }

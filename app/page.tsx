@@ -32,9 +32,24 @@ type ArticleHistory = {
   createdAt: string;
 };
 
+type Stats = {
+  totalGenerations: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUSD: number;
+  history: { date: string; count: number; costUSD: number }[];
+};
+
+type GenCost = { inputTokens: number; outputTokens: number; costUSD: number };
+
 const STORES_KEY = "article-bot-stores";
 const HISTORY_KEY = "article-bot-history";
+const STATS_KEY = "article-bot-stats";
 const MAX_HISTORY = 50;
+const USD_TO_JPY = 150;
+const INPUT_COST_PER_M = 3;
+const OUTPUT_COST_PER_M = 15;
+const USAGE_REGEX = /\n__USAGE__:(\d+):(\d+)$/;
 
 const REVIEW_SOURCES: ReviewSource[] = [
   "食べログ",
@@ -67,6 +82,10 @@ const LANGUAGES: { value: Language; label: string }[] = [
   { value: "japanese", label: "日本語" },
   { value: "both", label: "両方" },
 ];
+
+function calcCostUSD(inputTokens: number, outputTokens: number): number {
+  return (inputTokens * INPUT_COST_PER_M + outputTokens * OUTPUT_COST_PER_M) / 1_000_000;
+}
 
 function lsGetStores(): Store[] {
   try {
@@ -102,6 +121,45 @@ function lsSaveHistory(entry: ArticleHistory) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
+function lsGetStats(): Stats {
+  const empty: Stats = {
+    totalGenerations: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCostUSD: 0,
+    history: [],
+  };
+  try {
+    return JSON.parse(localStorage.getItem(STATS_KEY) || "null") ?? empty;
+  } catch {
+    return empty;
+  }
+}
+
+function lsAddStats(inputTokens: number, outputTokens: number): Stats {
+  const stats = lsGetStats();
+  const costUSD = calcCostUSD(inputTokens, outputTokens);
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+
+  stats.totalGenerations++;
+  stats.totalInputTokens += inputTokens;
+  stats.totalOutputTokens += outputTokens;
+  stats.totalCostUSD += costUSD;
+
+  const idx = stats.history.findIndex((h) => h.date === date);
+  if (idx >= 0) {
+    stats.history[idx].count++;
+    stats.history[idx].costUSD += costUSD;
+  } else {
+    stats.history.push({ date, count: 1, costUSD });
+    if (stats.history.length > 90) stats.history.shift();
+  }
+
+  localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  return stats;
+}
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -133,6 +191,10 @@ export default function Home() {
   const [historyCopied, setHistoryCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"text" | "preview">("text");
 
+  const [currentGenCost, setCurrentGenCost] = useState<GenCost | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [showStats, setShowStats] = useState(false);
+
   const pendingHistoryRef = useRef<{
     storeId: string;
     storeName: string;
@@ -145,22 +207,41 @@ export default function Home() {
     streamProtocol: "text",
   });
 
+  // Strip usage marker from completion for display and copy
+  const displayCompletion = completion.replace(USAGE_REGEX, "");
+
   useEffect(() => {
     setStores(lsGetStores());
     setHistory(lsGetHistory());
+    setStats(lsGetStats());
   }, []);
 
   useEffect(() => {
     if (!isLoading && completion && pendingHistoryRef.current) {
-      const entry: ArticleHistory = {
-        id: crypto.randomUUID(),
-        ...pendingHistoryRef.current,
-        article: completion,
-        createdAt: new Date().toISOString(),
-      };
-      lsSaveHistory(entry);
-      setHistory(lsGetHistory());
+      const pending = pendingHistoryRef.current;
       pendingHistoryRef.current = null;
+
+      // Parse usage marker
+      const usageMatch = completion.match(USAGE_REGEX);
+      const inputTokens = usageMatch ? parseInt(usageMatch[1]) : 0;
+      const outputTokens = usageMatch ? parseInt(usageMatch[2]) : 0;
+
+      if (inputTokens > 0 || outputTokens > 0) {
+        const costUSD = calcCostUSD(inputTokens, outputTokens);
+        setCurrentGenCost({ inputTokens, outputTokens, costUSD });
+        const updated = lsAddStats(inputTokens, outputTokens);
+        setStats(updated);
+      }
+
+      // Save history without the usage marker
+      const cleanArticle = completion.replace(USAGE_REGEX, "");
+      lsSaveHistory({
+        id: crypto.randomUUID(),
+        ...pending,
+        article: cleanArticle,
+        createdAt: new Date().toISOString(),
+      });
+      setHistory(lsGetHistory());
     }
   }, [isLoading, completion]);
 
@@ -222,6 +303,7 @@ export default function Home() {
   async function handleGenerate() {
     setCompletion("");
     setActiveTab("text");
+    setCurrentGenCost(null);
     setStep(3);
     setTimeout(() => {
       outputRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -274,8 +356,8 @@ export default function Home() {
   }
 
   async function copyToClipboard() {
-    if (!completion) return;
-    await navigator.clipboard.writeText(completion);
+    if (!displayCompletion) return;
+    await navigator.clipboard.writeText(displayCompletion);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -329,16 +411,51 @@ export default function Home() {
     return LANGUAGES.find((l) => l.value === v)?.label ?? v;
   }
 
+  // Stats modal computed values
+  const thisMonth = (() => {
+    if (!stats) return { count: 0, costUSD: 0 };
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    const prefix = `${d.getFullYear()}/${p(d.getMonth() + 1)}/`;
+    return stats.history
+      .filter((h) => h.date.startsWith(prefix))
+      .reduce((acc, h) => ({ count: acc.count + h.count, costUSD: acc.costUSD + h.costUSD }), { count: 0, costUSD: 0 });
+  })();
+
+  const last7Days = (() => {
+    const days: { label: string; date: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const p = (n: number) => String(n).padStart(2, "0");
+      const date = `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+      const label = `${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+      const count = stats?.history.find((h) => h.date === date)?.count ?? 0;
+      days.push({ label, date, count });
+    }
+    return days;
+  })();
+  const maxDayCount = Math.max(...last7Days.map((d) => d.count), 1);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-900">
-            Naver블로그 記事ジェネレーター
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            韓国人観光客向けグルメ記事を自動生成
-          </p>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">
+              Naver블로그 記事ジェネレーター
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              韓国人観光客向けグルメ記事を自動生成
+            </p>
+          </div>
+          <button
+            onClick={() => { setStats(lsGetStats()); setShowStats(true); }}
+            className="text-2xl hover:opacity-70 transition-opacity"
+            title="利用統計"
+          >
+            📊
+          </button>
         </div>
       </header>
 
@@ -628,7 +745,7 @@ export default function Home() {
                   生成された記事
                 </span>
               </div>
-              {completion && !isLoading && (
+              {displayCompletion && !isLoading && (
                 <button
                   onClick={copyToClipboard}
                   className="text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg"
@@ -639,7 +756,7 @@ export default function Home() {
             </div>
 
             {/* Tabs — appear only after streaming finishes */}
-            {completion && !isLoading && (
+            {displayCompletion && !isLoading && (
               <div className="flex border-b border-gray-100">
                 {(["text", "preview"] as const).map((tab) => (
                   <button
@@ -673,7 +790,7 @@ export default function Home() {
               {/* Text tab (also shown during streaming) */}
               {completion && (isLoading || activeTab === "text") && (
                 <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
-                  {completion}
+                  {displayCompletion}
                   {isLoading && (
                     <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                   )}
@@ -681,7 +798,7 @@ export default function Home() {
               )}
 
               {/* Naver preview tab */}
-              {completion && !isLoading && activeTab === "preview" && (
+              {displayCompletion && !isLoading && activeTab === "preview" && (
                 <>
                   <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');`}</style>
                   <div
@@ -693,13 +810,25 @@ export default function Home() {
                       lineHeight: 1.9,
                     }}
                   >
-                    {renderNaverPreview(completion)}
+                    {renderNaverPreview(displayCompletion)}
                   </div>
                 </>
               )}
             </div>
 
-            {completion && !isLoading && (
+            {/* Token cost summary */}
+            {currentGenCost && !isLoading && (
+              <div className="px-6 pb-2">
+                <p className="text-xs text-gray-400">
+                  今回：入力 {currentGenCost.inputTokens.toLocaleString()} tokens / 出力 {currentGenCost.outputTokens.toLocaleString()} tokens / 約¥{Math.ceil(currentGenCost.costUSD * USD_TO_JPY)}
+                  {stats && stats.totalGenerations > 0 && (
+                    <> | 累計：{stats.totalGenerations}回 / 約¥{Math.ceil(stats.totalCostUSD * USD_TO_JPY).toLocaleString()}</>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {displayCompletion && !isLoading && (
               <div className="px-6 pb-5 space-y-2">
                 <div className="flex gap-2">
                   <button
@@ -817,6 +946,93 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Stats Modal */}
+      {showStats && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowStats(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <h2 className="font-semibold text-gray-800">利用統計</h2>
+              <button
+                onClick={() => setShowStats(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {/* Totals */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">累計</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {stats?.totalGenerations ?? 0}
+                      <span className="text-sm font-normal text-gray-500 ml-1">回</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">生成回数</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-2xl font-bold text-gray-900">
+                      ¥{Math.ceil((stats?.totalCostUSD ?? 0) * USD_TO_JPY).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ${((stats?.totalCostUSD ?? 0)).toFixed(4)} USD
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* This month */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">今月</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {thisMonth.count}
+                      <span className="text-sm font-normal text-gray-500 ml-1">回</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">生成回数</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-2xl font-bold text-gray-900">
+                      ¥{Math.ceil(thisMonth.costUSD * USD_TO_JPY).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ${thisMonth.costUSD.toFixed(4)} USD
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Last 7 days bar chart */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">直近7日間の生成回数</p>
+                <div className="space-y-2">
+                  {last7Days.map(({ label, count }) => (
+                    <div key={label} className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 w-10 shrink-0 text-right">{label}</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                        <div
+                          className="bg-indigo-400 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${(count / maxDayCount) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600 w-4 text-right shrink-0">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
