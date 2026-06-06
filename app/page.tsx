@@ -799,162 +799,157 @@ export default function Home() {
 
         {/* Step 3 - Output */}
         {(step === 3 || completion) && (
-          <section
-            ref={outputRef}
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-          >
-            {/* Header */}
-            <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
-              <div className="flex items-center gap-3">
+          <div ref={outputRef} className="space-y-4">
+
+            {/* Section 1: Title candidates — shown only after streaming finishes */}
+            {parsedArticle.titles.length > 0 && !isLoading && (
+              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <p className="font-semibold text-gray-800">📝 タイトル候補</p>
+                </div>
+                <div className="px-6 py-4 space-y-3">
+                  {parsedArticle.titles.map(({ label, text }) => (
+                    <div
+                      key={label}
+                      className="flex items-start gap-3 border border-gray-200 rounded-xl p-4 hover:bg-indigo-50 transition-colors"
+                    >
+                      <span className="text-xs font-bold text-indigo-600 bg-indigo-100 rounded-md px-2 py-1 flex-shrink-0 leading-none mt-0.5">
+                        {label}
+                      </span>
+                      <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
+                      <button
+                        onClick={() => copyTitleText(text, label)}
+                        className="flex-shrink-0 text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                      >
+                        {copiedTitle === label ? "✓ コピー済み" : "📋 コピー"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Section 2: Article body */}
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 flex items-center gap-3 border-b border-gray-100">
                 <span
                   className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 ${
-                    completion
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-200 text-gray-500"
+                    completion ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-500"
                   }`}
                 >
                   3
                 </span>
-                <span className="font-semibold text-gray-800">
-                  生成された記事
-                </span>
+                <span className="font-semibold text-gray-800">📄 記事本文</span>
               </div>
-              {displayCompletion && !isLoading && (
-                <button
-                  onClick={copyToClipboard}
-                  className="text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-lg"
-                >
-                  {copied ? "✓ コピー済み" : "📋 コピー"}
-                </button>
-              )}
-            </div>
 
-            {/* Title candidates — appear after streaming finishes */}
-            {parsedArticle.titles.length > 0 && !isLoading && (
-              <div className="px-6 py-4 border-b border-gray-100 space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">タイトル候補</p>
-                {parsedArticle.titles.map(({ label, text }) => (
-                  <div key={label} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
-                    <span className="text-xs font-bold text-indigo-600 bg-indigo-100 rounded px-1.5 py-0.5 mt-0.5 flex-shrink-0 leading-none">
-                      {label}
-                    </span>
-                    <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
+              {/* Tabs — appear only after streaming finishes */}
+              {displayCompletion && !isLoading && (
+                <div className="flex border-b border-gray-100">
+                  {(["text", "preview"] as const).map((tab) => (
                     <button
-                      onClick={() => copyTitleText(text, label)}
-                      className="flex-shrink-0 text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-white border border-indigo-200 px-2 py-1 rounded-lg transition-colors"
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                        activeTab === tab
+                          ? "text-indigo-600 border-b-2 border-indigo-600"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
                     >
-                      {copiedTitle === label ? "✓" : "コピー"}
+                      {tab === "text" ? "テキスト" : "Naverプレビュー"}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="px-6 py-5">
+                {isLoading && !completion && (
+                  <div className="flex items-center gap-3 text-gray-500">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:0ms]" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:300ms]" />
+                    </div>
+                    <span className="text-sm">記事を生成しています...</span>
+                  </div>
+                )}
+
+                {/* Text tab (also shown during streaming) */}
+                {completion && (isLoading || activeTab === "text") && (
+                  <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
+                    {isLoading ? textDisplay : textBodyDisplay}
+                    {isLoading && (
+                      <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
+                    )}
+                  </div>
+                )}
+
+                {/* Naver preview tab */}
+                {displayCompletion && !isLoading && activeTab === "preview" && (
+                  <>
+                    <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');`}</style>
+                    <div
+                      style={{
+                        fontFamily: "'Noto Sans KR', sans-serif",
+                        maxWidth: "680px",
+                        margin: "0 auto",
+                        background: "#fff",
+                        lineHeight: 1.9,
+                      }}
+                    >
+                      {renderNaverPreview(parsedArticle.body || displayCompletion)}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Token cost summary */}
+              {currentGenCost && !isLoading && (
+                <div className="px-6 pb-2">
+                  <p className="text-xs text-gray-400">
+                    今回：入力 {currentGenCost.inputTokens.toLocaleString()} tokens / 出力 {currentGenCost.outputTokens.toLocaleString()} tokens / 約¥{Math.ceil(currentGenCost.costUSD * USD_TO_JPY)}
+                    {stats && stats.totalGenerations > 0 && (
+                      <> | 累計：{stats.totalGenerations}回 / 約¥{Math.ceil(stats.totalCostUSD * USD_TO_JPY).toLocaleString()}</>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {displayCompletion && !isLoading && (
+                <div className="px-6 pb-5 space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
+                    >
+                      {copied ? "✓ コピーしました" : "📋 記事をコピー"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCompletion("");
+                        setStep(2);
+                      }}
+                      className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      再生成
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Tabs — appear only after streaming finishes */}
-            {displayCompletion && !isLoading && (
-              <div className="flex border-b border-gray-100">
-                {(["text", "preview"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                      activeTab === tab
-                        ? "text-indigo-600 border-b-2 border-indigo-600"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {tab === "text" ? "テキスト" : "Naverプレビュー"}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="px-6 py-5">
-              {isLoading && !completion && (
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:0ms]" />
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:300ms]" />
-                  </div>
-                  <span className="text-sm">記事を生成しています...</span>
-                </div>
-              )}
-
-              {/* Text tab (also shown during streaming) */}
-              {completion && (isLoading || activeTab === "text") && (
-                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
-                  {isLoading ? textDisplay : textBodyDisplay}
-                  {isLoading && (
-                    <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
-                  )}
-                </div>
-              )}
-
-              {/* Naver preview tab */}
-              {displayCompletion && !isLoading && activeTab === "preview" && (
-                <>
-                  <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');`}</style>
-                  <div
-                    style={{
-                      fontFamily: "'Noto Sans KR', sans-serif",
-                      maxWidth: "680px",
-                      margin: "0 auto",
-                      background: "#fff",
-                      lineHeight: 1.9,
-                    }}
-                  >
-                    {renderNaverPreview(parsedArticle.body || displayCompletion)}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Token cost summary */}
-            {currentGenCost && !isLoading && (
-              <div className="px-6 pb-2">
-                <p className="text-xs text-gray-400">
-                  今回：入力 {currentGenCost.inputTokens.toLocaleString()} tokens / 出力 {currentGenCost.outputTokens.toLocaleString()} tokens / 約¥{Math.ceil(currentGenCost.costUSD * USD_TO_JPY)}
-                  {stats && stats.totalGenerations > 0 && (
-                    <> | 累計：{stats.totalGenerations}回 / 約¥{Math.ceil(stats.totalCostUSD * USD_TO_JPY).toLocaleString()}</>
-                  )}
-                </p>
-              </div>
-            )}
-
-            {displayCompletion && !isLoading && (
-              <div className="px-6 pb-5 space-y-2">
-                <div className="flex gap-2">
-                  <button
-                    onClick={copyToClipboard}
-                    className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
-                  >
-                    {copied ? "✓ コピーしました" : "📋 記事をコピー"}
-                  </button>
                   <button
                     onClick={() => {
-                      setCompletion("");
-                      setStep(2);
+                      setHistory(lsGetHistory());
+                      setViewingHistory(null);
+                      setShowHistory(true);
                     }}
-                    className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                    className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
                   >
-                    再生成
+                    履歴を見る
                   </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setHistory(lsGetHistory());
-                    setViewingHistory(null);
-                    setShowHistory(true);
-                  }}
-                  className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  履歴を見る
-                </button>
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+
+          </div>
         )}
       </main>
 
