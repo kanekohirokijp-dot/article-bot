@@ -231,16 +231,24 @@ export default function Home() {
     const text = displayCompletion;
     const titleStart = text.indexOf("【タイトル候補】");
     if (titleStart === -1) return { titles: [] as { label: string; text: string }[], body: text };
-    // Match ---  separator line (tolerates trailing whitespace / \r\n)
-    const sepMatch = text.slice(titleStart).match(/\n---[ \t]*\r?\n/);
+
+    // Find the first line that contains only "---" (after the title section start)
+    const afterTitle = text.slice(titleStart);
+    const sepMatch = afterTitle.match(/^-{3}\s*$/m);
     if (!sepMatch || sepMatch.index == null) return { titles: [] as { label: string; text: string }[], body: text };
-    const sepAbsIdx = titleStart + sepMatch.index;
-    const titleSection = text.slice(titleStart, sepAbsIdx);
-    const body = text.slice(sepAbsIdx + sepMatch[0].length);
+
+    const titleSection = afterTitle.slice(0, sepMatch.index);
+    // Body starts after the "---" line (skip the line itself + trailing newline)
+    const body = afterTitle.slice(sepMatch.index + sepMatch[0].length).replace(/^\r?\n/, "");
+
     const titles: { label: string; text: string }[] = [];
-    for (const m of titleSection.matchAll(/^([A-C])\. (.+)$/gm)) {
+    for (const m of titleSection.matchAll(/^([A-C])\.\s*(.+)$/gm)) {
       titles.push({ label: m[1], text: m[2].trim() });
     }
+
+    console.log("[parsedArticle] titles:", titles.map((t) => t.text));
+    console.log("[parsedArticle] body (first 100):", body.slice(0, 100));
+
     return { titles, body };
   })();
 
