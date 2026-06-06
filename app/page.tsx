@@ -195,7 +195,9 @@ export default function Home() {
   const [currentGenCost, setCurrentGenCost] = useState<GenCost | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
+  const wasLoadingRef = useRef(false);
   const pendingHistoryRef = useRef<{
     storeId: string;
     storeName: string;
@@ -274,6 +276,14 @@ export default function Home() {
       });
       setHistory(lsGetHistory());
     }
+  }, [isLoading, completion]);
+
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && completion) {
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500);
+    }
+    wasLoadingRef.current = isLoading;
   }, [isLoading, completion]);
 
   function addReview() {
@@ -1197,6 +1207,83 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* Loading overlay */}
+      {isLoading && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            zIndex: 50,
+            background: "rgba(255,255,255,0.85)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "16px",
+              padding: "24px 32px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
+            <div className="article-spinner" />
+            <p style={{ fontSize: "16px", color: "#4f46e5", fontWeight: 500 }}>✨ 記事を生成中...</p>
+            <p style={{ fontSize: "12px", color: "#9ca3af" }}>しばらくお待ちください</p>
+          </div>
+        </div>
+      )}
+
+      {/* Completion toast */}
+      {showToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "32px",
+            left: "50%",
+            zIndex: 100,
+            background: "#4f46e5",
+            color: "white",
+            borderRadius: "24px",
+            padding: "12px 24px",
+            fontSize: "14px",
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+            animation: "toastSlide 2.5s ease-out forwards",
+          }}
+        >
+          🎉 記事できたっぽいよ！
+        </div>
+      )}
+
+      <style>{`
+        .article-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #e0e7ff;
+          border-top-color: #4f46e5;
+          border-radius: 50%;
+          animation: articleSpin 0.8s linear infinite;
+        }
+        @keyframes articleSpin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes toastSlide {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          75%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
