@@ -181,6 +181,7 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>("japanese");
   const [nextReviewId, setNextReviewId] = useState(4);
   const [copied, setCopied] = useState(false);
+  const [copiedTitle, setCopiedTitle] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const [stores, setStores] = useState<Store[]>([]);
@@ -210,8 +211,30 @@ export default function Home() {
   // Strip usage marker from completion for display and copy
   const displayCompletion = completion.replace(USAGE_REGEX, "");
 
+  // Parse title candidates section and body from the AI output
+  const parsedArticle = (() => {
+    const text = displayCompletion;
+    const titleStart = text.indexOf("【タイトル候補】");
+    if (titleStart === -1) return { titles: [] as { label: string; text: string }[], body: text };
+    const sepIdx = text.indexOf("\n---\n", titleStart);
+    if (sepIdx === -1) return { titles: [] as { label: string; text: string }[], body: text };
+    const titleSection = text.slice(titleStart, sepIdx);
+    const body = text.slice(sepIdx + 5);
+    const titles: { label: string; text: string }[] = [];
+    for (const m of titleSection.matchAll(/^([A-C])\. (.+)$/gm)) {
+      titles.push({ label: m[1], text: m[2].trim() });
+    }
+    return { titles, body };
+  })();
+
   // For the text tab: convert markdown links to "text: URL" readable format
   const textDisplay = displayCompletion.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    "$1: $2"
+  );
+
+  // Body-only version for text tab after streaming (excludes title section)
+  const textBodyDisplay = parsedArticle.body.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     "$1: $2"
   );
@@ -310,6 +333,7 @@ export default function Home() {
     setCompletion("");
     setActiveTab("text");
     setCurrentGenCost(null);
+    setCopiedTitle(null);
     setStep(3);
     setTimeout(() => {
       outputRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -384,20 +408,26 @@ export default function Home() {
   }
 
   async function copyToClipboard() {
-    if (!displayCompletion) return;
+    const body = parsedArticle.body || displayCompletion;
+    if (!body) return;
     try {
-      const html = markdownToHtml(displayCompletion);
+      const html = markdownToHtml(body);
       const htmlBlob = new Blob([html], { type: "text/html" });
-      const textBlob = new Blob([displayCompletion], { type: "text/plain" });
+      const textBlob = new Blob([body], { type: "text/plain" });
       await navigator.clipboard.write([
         new ClipboardItem({ "text/html": htmlBlob, "text/plain": textBlob }),
       ]);
     } catch {
-      // Fallback to plain text if ClipboardItem is not supported
-      await navigator.clipboard.writeText(displayCompletion);
+      await navigator.clipboard.writeText(body);
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function copyTitleText(text: string, label: string) {
+    await navigator.clipboard.writeText(text);
+    setCopiedTitle(label);
+    setTimeout(() => setCopiedTitle(null), 2000);
   }
 
   function renderNaverPreview(text: string) {
@@ -799,6 +829,27 @@ export default function Home() {
               )}
             </div>
 
+            {/* Title candidates — appear after streaming finishes */}
+            {parsedArticle.titles.length > 0 && !isLoading && (
+              <div className="px-6 py-4 border-b border-gray-100 space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">タイトル候補</p>
+                {parsedArticle.titles.map(({ label, text }) => (
+                  <div key={label} className="flex items-start gap-2 bg-gray-50 rounded-xl p-3">
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-100 rounded px-1.5 py-0.5 mt-0.5 flex-shrink-0 leading-none">
+                      {label}
+                    </span>
+                    <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
+                    <button
+                      onClick={() => copyTitleText(text, label)}
+                      className="flex-shrink-0 text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-white border border-indigo-200 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      {copiedTitle === label ? "✓" : "コピー"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Tabs — appear only after streaming finishes */}
             {displayCompletion && !isLoading && (
               <div className="flex border-b border-gray-100">
@@ -834,7 +885,7 @@ export default function Home() {
               {/* Text tab (also shown during streaming) */}
               {completion && (isLoading || activeTab === "text") && (
                 <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
-                  {textDisplay}
+                  {isLoading ? textDisplay : textBodyDisplay}
                   {isLoading && (
                     <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
                   )}
@@ -854,7 +905,7 @@ export default function Home() {
                       lineHeight: 1.9,
                     }}
                   >
-                    {renderNaverPreview(displayCompletion)}
+                    {renderNaverPreview(parsedArticle.body || displayCompletion)}
                   </div>
                 </>
               )}
