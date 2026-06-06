@@ -429,7 +429,7 @@ export default function Home() {
   async function copyTitleText(text: string, label: string) {
     await navigator.clipboard.writeText(text);
     setCopiedTitle(label);
-    setTimeout(() => setCopiedTitle(null), 2000);
+    setTimeout(() => setCopiedTitle(null), 1500);
   }
 
   function renderNaverPreview(text: string) {
@@ -480,6 +480,36 @@ export default function Home() {
     });
   }
 
+  function restoreFromHistory(entry: ArticleHistory) {
+    const store = stores.find((s) => s.id === entry.storeId);
+    if (store) {
+      setSelectedStoreId(entry.storeId);
+      setStoreName(store.name);
+      setStoreInfo(store.storeInfo);
+      const loaded: Review[] = store.reviews.map((r, i) => ({
+        id: i + 1,
+        source: r.source as ReviewSource,
+        text: r.text,
+      }));
+      while (loaded.length < 3) {
+        loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+      }
+      setReviews(loaded);
+      setNextReviewId(loaded.length + 1);
+    }
+    setCompletion(entry.article);
+    setTone(entry.tone as Tone);
+    setLanguage(entry.language as Language);
+    setCurrentGenCost(null);
+    setCopied(false);
+    setCopiedTitle(null);
+    setActiveTab("text");
+    setStep(3);
+    setShowHistory(false);
+    setViewingHistory(null);
+    setTimeout(() => outputRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  }
+
   function getToneLabel(v: string) {
     return TONES.find((t) => t.value === v)?.label ?? v;
   }
@@ -525,13 +555,20 @@ export default function Home() {
               韓国人観光客向けグルメ記事を自動生成
             </p>
           </div>
-          <button
-            onClick={() => { setStats(lsGetStats()); setShowStats(true); }}
-            className="text-2xl hover:opacity-70 transition-opacity"
-            title="利用統計"
-          >
-            📊
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setHistory(lsGetHistory()); setViewingHistory(null); setShowHistory(true); }}
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              📋 履歴
+            </button>
+            <button
+              onClick={() => { setStats(lsGetStats()); setShowStats(true); }}
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              📊 統計
+            </button>
+          </div>
         </div>
       </header>
 
@@ -546,7 +583,7 @@ export default function Home() {
               <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
                 1
               </span>
-              <span className="font-semibold text-gray-800">基本情報を入力</span>
+              <span className="font-semibold text-gray-800">① 店舗情報を入力</span>
             </div>
             <span className="text-gray-400 text-lg">{step === 1 ? "▲" : "▼"}</span>
           </button>
@@ -555,7 +592,7 @@ export default function Home() {
             <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
               {/* Saved stores */}
               <div className="rounded-xl border border-gray-200 p-4 bg-gray-50 space-y-2">
-                <p className="text-sm font-medium text-gray-700">保存済み店舗から選ぶ</p>
+                <p className="text-sm font-medium text-gray-700">🏪 保存済み店舗から読み込む</p>
                 {stores.length === 0 ? (
                   <p className="text-sm text-gray-400">保存済みの店舗はありません</p>
                 ) : (
@@ -599,7 +636,7 @@ export default function Home() {
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
-                  placeholder="例：KAMERA、リバーサイドヤオヤ"
+                  placeholder="例：KAMERA / リバーサイドヤオヤ"
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
               </div>
@@ -619,7 +656,7 @@ export default function Home() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <label className="text-sm font-medium text-gray-700">
                     口コミ
                     <span className="text-red-500 ml-1">*</span>
@@ -631,6 +668,7 @@ export default function Home() {
                     <span className="text-lg leading-none">+</span> 口コミを追加
                   </button>
                 </div>
+                <p className="text-xs text-gray-500 mb-2">実際の口コミを3件以上入力してください（記事の素材として使用します）</p>
 
                 <div className="space-y-3">
                   {reviews.map((review, index) => (
@@ -726,7 +764,7 @@ export default function Home() {
                 2
               </span>
               <span className="font-semibold text-gray-800">
-                記事スタイルを選ぶ
+                ② 記事スタイルを選ぶ
               </span>
             </div>
             <span className="text-gray-400 text-lg">{step === 2 ? "▲" : "▼"}</span>
@@ -791,7 +829,8 @@ export default function Home() {
               <button
                 onClick={handleGenerate}
                 disabled={!storeInfo.trim() || isLoading}
-                className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}
               >
                 {isLoading ? "生成中..." : "記事を生成する ✨"}
               </button>
@@ -836,9 +875,16 @@ export default function Home() {
                       <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
                       <button
                         onClick={() => copyTitleText(text, label)}
-                        className="flex-shrink-0 text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                        className="flex-shrink-0 text-xs font-medium transition-colors whitespace-nowrap"
+                        style={{
+                          padding: "6px 12px",
+                          border: "1px solid #4f46e5",
+                          color: "#4f46e5",
+                          borderRadius: "6px",
+                          background: "white",
+                        }}
                       >
-                        {copiedTitle === label ? "✓" : "📋"}
+                        {copiedTitle === label ? "✓ コピー済み" : "コピー"}
                       </button>
                     </div>
                   ))}
@@ -857,7 +903,7 @@ export default function Home() {
                 >
                   3
                 </span>
-                <span className="font-semibold text-gray-800">📄 記事本文</span>
+                <span className="font-semibold text-gray-800">③ 生成された記事</span>
               </div>
 
               {/* Tabs — appear only after streaming finishes */}
@@ -940,7 +986,7 @@ export default function Home() {
                       onClick={copyToClipboard}
                       className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
                     >
-                      {copied ? "✓ コピーしました" : "📋 記事をコピー"}
+                      {copied ? "✓ コピーしました" : "📋 Naverブログにコピー"}
                     </button>
                     <button
                       onClick={() => {
@@ -952,6 +998,7 @@ export default function Home() {
                       再生成
                     </button>
                   </div>
+                  <p className="text-xs text-gray-400 text-center">※Naverブログのエディタに貼り付けるとリンクが有効になります</p>
                   <button
                     onClick={() => {
                       setHistory(lsGetHistory());
@@ -1013,14 +1060,21 @@ export default function Home() {
                     {viewingHistory.article}
                   </p>
                 </div>
-                <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0">
+                <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0 space-y-2">
+                  <button
+                    onClick={() => restoreFromHistory(viewingHistory)}
+                    className="w-full py-2.5 rounded-xl text-white text-sm font-medium transition-opacity"
+                    style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}
+                  >
+                    この内容を復元して表示
+                  </button>
                   <button
                     onClick={async () => {
                       await navigator.clipboard.writeText(viewingHistory.article);
                       setHistoryCopied(true);
                       setTimeout(() => setHistoryCopied(false), 2000);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+                    className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
                   >
                     {historyCopied ? "✓ コピーしました" : "📋 この記事をコピー"}
                   </button>
