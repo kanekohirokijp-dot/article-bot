@@ -216,10 +216,12 @@ export default function Home() {
     const text = displayCompletion;
     const titleStart = text.indexOf("【タイトル候補】");
     if (titleStart === -1) return { titles: [] as { label: string; text: string }[], body: text };
-    const sepIdx = text.indexOf("\n---\n", titleStart);
-    if (sepIdx === -1) return { titles: [] as { label: string; text: string }[], body: text };
-    const titleSection = text.slice(titleStart, sepIdx);
-    const body = text.slice(sepIdx + 5);
+    // Match ---  separator line (tolerates trailing whitespace / \r\n)
+    const sepMatch = text.slice(titleStart).match(/\n---[ \t]*\r?\n/);
+    if (!sepMatch || sepMatch.index == null) return { titles: [] as { label: string; text: string }[], body: text };
+    const sepAbsIdx = titleStart + sepMatch.index;
+    const titleSection = text.slice(titleStart, sepAbsIdx);
+    const body = text.slice(sepAbsIdx + sepMatch[0].length);
     const titles: { label: string; text: string }[] = [];
     for (const m of titleSection.matchAll(/^([A-C])\. (.+)$/gm)) {
       titles.push({ label: m[1], text: m[2].trim() });
@@ -811,9 +813,24 @@ export default function Home() {
                   {parsedArticle.titles.map(({ label, text }) => (
                     <div
                       key={label}
-                      className="flex items-start gap-3 border border-gray-200 rounded-xl p-4 hover:bg-indigo-50 transition-colors"
+                      className="flex items-center gap-3 transition-colors"
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        padding: "12px 16px",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f3ff")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
-                      <span className="text-xs font-bold text-indigo-600 bg-indigo-100 rounded-md px-2 py-1 flex-shrink-0 leading-none mt-0.5">
+                      <span
+                        className="flex-shrink-0 text-xs font-bold text-white flex items-center justify-center"
+                        style={{
+                          background: "#4f46e5",
+                          borderRadius: "50%",
+                          width: "22px",
+                          height: "22px",
+                        }}
+                      >
                         {label}
                       </span>
                       <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
@@ -821,7 +838,7 @@ export default function Home() {
                         onClick={() => copyTitleText(text, label)}
                         className="flex-shrink-0 text-xs text-indigo-600 font-medium hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1.5 rounded-lg transition-colors"
                       >
-                        {copiedTitle === label ? "✓ コピー済み" : "📋 コピー"}
+                        {copiedTitle === label ? "✓" : "📋"}
                       </button>
                     </div>
                   ))}
