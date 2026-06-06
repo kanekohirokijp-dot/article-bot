@@ -655,7 +655,7 @@ export default function Home() {
                     type="text"
                     value={placesQuery}
                     onChange={(e) => setPlacesQuery(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") fetchFromMaps(); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) fetchFromMaps(); }}
                     placeholder="店名またはGoogle Maps URLを入力"
                     disabled={placesFetching}
                     className="flex-1 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:opacity-60"
