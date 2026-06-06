@@ -106,6 +106,11 @@ function lsSaveStore(store: Store) {
   localStorage.setItem(STORES_KEY, JSON.stringify(stores));
 }
 
+function lsDeleteStore(id: string) {
+  const stores = lsGetStores().filter((s) => s.id !== id);
+  localStorage.setItem(STORES_KEY, JSON.stringify(stores));
+}
+
 function lsGetHistory(): ArticleHistory[] {
   try {
     return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
@@ -203,6 +208,7 @@ export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const wasLoadingRef = useRef(false);
   const pendingHistoryRef = useRef<{
@@ -386,6 +392,22 @@ export default function Home() {
       updatedAt: now,
     });
     setStores(lsGetStores());
+  }
+
+  function deleteCurrentStore() {
+    if (!selectedStoreId) return;
+    lsDeleteStore(selectedStoreId);
+    setStores(lsGetStores());
+    setSelectedStoreId(null);
+    setStoreName("");
+    setStoreInfo("");
+    setReviews([
+      { id: 1, source: "食べログ", text: "" },
+      { id: 2, source: "食べログ", text: "" },
+      { id: 3, source: "食べログ", text: "" },
+    ]);
+    setNextReviewId(4);
+    setShowDeleteConfirm(false);
   }
 
   async function handleGenerate() {
@@ -688,24 +710,35 @@ export default function Home() {
                   <p className="text-sm text-gray-400">保存済みの店舗はありません</p>
                 ) : (
                   <>
-                    <select
-                      value={selectedStoreId ?? ""}
-                      onChange={(e) => {
-                        if (e.target.value === "") {
-                          setSelectedStoreId(null);
-                        } else {
-                          selectStore(e.target.value);
-                        }
-                      }}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                    >
-                      <option value="">（新規作成）</option>
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        value={selectedStoreId ?? ""}
+                        onChange={(e) => {
+                          if (e.target.value === "") {
+                            setSelectedStoreId(null);
+                          } else {
+                            selectStore(e.target.value);
+                          }
+                        }}
+                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                      >
+                        <option value="">（新規作成）</option>
+                        {stores.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedStoreId && (
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="px-3 py-2 rounded-lg border border-red-200 text-red-500 text-sm hover:bg-red-50 transition-colors flex-shrink-0"
+                          title="削除"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                     {selectedStoreId && (
                       <button
                         onClick={saveCurrentStore}
@@ -1198,6 +1231,35 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete store confirmation modal */}
+      {showDeleteConfirm && selectedStoreId && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 space-y-4">
+            <p className="font-semibold text-gray-900 text-center">
+              「{stores.find((s) => s.id === selectedStoreId)?.name ?? "この店舗"}」を削除しますか？
+            </p>
+            <p className="text-sm text-gray-500 text-center">この操作は取り消せません。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={deleteCurrentStore}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                削除する
+              </button>
+            </div>
           </div>
         </div>
       )}
