@@ -178,7 +178,7 @@ export default function Home() {
   const [menuStoreName, setMenuStoreName] = useState("");
   const [menuInfo, setMenuInfo] = useState("");
   const [menuStoreInfo, setMenuStoreInfo] = useState("");
-  const [menuLanguage, setMenuLanguage] = useState<Language>("korean");
+  const [menuArticleUrl, setMenuArticleUrl] = useState("");
 
   const [step, setStep] = useState(1);
   const [storeName, setStoreName] = useState("");
@@ -521,9 +521,9 @@ export default function Home() {
     }, 100);
 
     const storeId = "menu-" + crypto.randomUUID();
-    pendingHistoryRef.current = { storeId, storeName: menuStoreName, tone: "menu", language: menuLanguage };
+    pendingHistoryRef.current = { storeId, storeName: menuStoreName, tone: "menu", language: "korean" };
 
-    await menuComplete("", { body: { menuStoreName, menuInfo, menuStoreInfo, language: menuLanguage } });
+    await menuComplete("", { body: { menuStoreName, menuInfo, menuStoreInfo, menuArticleUrl } });
   }
 
   function markdownToHtml(text: string): string {
@@ -623,7 +623,6 @@ export default function Home() {
     if (entry.tone === "menu") {
       setArticleMode("menu");
       setMenuStoreName(entry.storeName);
-      setMenuLanguage(entry.language as Language);
       setMenuCompletion(entry.article);
     } else {
       setArticleMode("intro");
@@ -780,7 +779,21 @@ export default function Home() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  店舗基本情報（任意）
+                  紹介記事のURL（任意・後から追加可）
+                </label>
+                <input
+                  type="text"
+                  value={menuArticleUrl}
+                  onChange={(e) => setMenuArticleUrl(e.target.value)}
+                  placeholder="例：https://blog.naver.com/xxx/123456789"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">紹介記事を公開したら、このURLをメニュー記事の本文に自動で挿入します</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  店舗基本情報
+                  <span className="text-red-500 ml-1">*</span>
                 </label>
                 <textarea
                   value={menuStoreInfo}
@@ -790,29 +803,9 @@ export default function Home() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  出力言語
-                </label>
-                <div className="flex gap-2">
-                  {LANGUAGES.map((l) => (
-                    <button
-                      key={l.value}
-                      onClick={() => setMenuLanguage(l.value)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${
-                        menuLanguage === l.value
-                          ? "border-pink-500 bg-pink-50 text-pink-700"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
               <button
                 onClick={handleMenuGenerate}
-                disabled={!menuStoreName.trim() || !menuInfo.trim() || menuIsLoading}
+                disabled={!menuStoreName.trim() || !menuInfo.trim() || !menuStoreInfo.trim() || menuIsLoading}
                 className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                 style={{ background: "linear-gradient(135deg, #db2777, #9d174d)" }}
               >
