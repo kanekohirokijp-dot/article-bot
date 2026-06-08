@@ -177,6 +177,7 @@ export default function Home() {
   const [articleMode, setArticleMode] = useState<ArticleMode>("intro");
   const [menuStoreName, setMenuStoreName] = useState("");
   const [menuInfo, setMenuInfo] = useState("");
+  const [menuStoreInfo, setMenuStoreInfo] = useState("");
   const [menuLanguage, setMenuLanguage] = useState<Language>("korean");
 
   const [step, setStep] = useState(1);
@@ -273,6 +274,18 @@ export default function Home() {
     return { titles, body };
   })();
 
+  // For menu mode: parse fixed title (first line) and body (after first ---)
+  const menuFixedTitle = (() => {
+    if (articleMode !== "menu" || !displayCompletion) return null;
+    const text = displayCompletion;
+    const firstLine = text.split("\n").find((l) => l.trim());
+    if (!firstLine) return null;
+    const sepMatch = text.match(/^-{3}\s*$/m);
+    if (!sepMatch || sepMatch.index == null) return { title: firstLine.trim(), body: text };
+    const body = text.slice(sepMatch.index + sepMatch[0].length).replace(/^\r?\n/, "");
+    return { title: firstLine.trim(), body };
+  })();
+
   // For the text tab: convert markdown links to "text: URL" readable format
   const textDisplay = displayCompletion.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
@@ -280,10 +293,12 @@ export default function Home() {
   );
 
   // Body-only version for text tab after streaming (excludes title section)
-  const textBodyDisplay = parsedArticle.body.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    "$1: $2"
-  );
+  const textBodyDisplay = (() => {
+    const body = (articleMode === "menu" && menuFixedTitle)
+      ? menuFixedTitle.body
+      : parsedArticle.body;
+    return body.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1: $2");
+  })();
 
   useEffect(() => {
     setStores(lsGetStores());
@@ -508,7 +523,7 @@ export default function Home() {
     const storeId = "menu-" + crypto.randomUUID();
     pendingHistoryRef.current = { storeId, storeName: menuStoreName, tone: "menu", language: menuLanguage };
 
-    await menuComplete("", { body: { menuStoreName, menuInfo, language: menuLanguage } });
+    await menuComplete("", { body: { menuStoreName, menuInfo, menuStoreInfo, language: menuLanguage } });
   }
 
   function markdownToHtml(text: string): string {
@@ -534,7 +549,7 @@ export default function Home() {
   }
 
   async function copyToClipboard() {
-    const body = parsedArticle.body || displayCompletion;
+    const body = (articleMode === "menu" && menuFixedTitle?.body) || parsedArticle.body || displayCompletion;
     if (!body) return;
     try {
       const html = markdownToHtml(body);
@@ -760,6 +775,18 @@ export default function Home() {
                   onChange={(e) => setMenuInfo(e.target.value)}
                   placeholder={`食べログのメニューページからコピーしてください\nメニュー名・価格・説明など`}
                   rows={8}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  店舗基本情報（任意）
+                </label>
+                <textarea
+                  value={menuStoreInfo}
+                  onChange={(e) => setMenuStoreInfo(e.target.value)}
+                  placeholder="食べログ・Googleマップなどから住所・営業時間・アクセスをコピーしてください"
+                  rows={4}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
                 />
               </div>
@@ -1113,8 +1140,31 @@ export default function Home() {
         {(step === 3 || completion) && (
           <div ref={outputRef} className="space-y-4">
 
-            {/* Section 1: Title candidates — shown only after streaming finishes */}
-            {parsedArticle.titles.length > 0 && !isLoading && (
+            {/* Section 1a: Fixed title for menu mode */}
+            {articleMode === "menu" && menuFixedTitle && !isLoading && (
+              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 flex items-center gap-3">
+                  <span className="text-sm text-gray-500 whitespace-nowrap">📌 タイトル：</span>
+                  <p className="flex-1 text-sm font-medium text-gray-800 leading-relaxed">{menuFixedTitle.title}</p>
+                  <button
+                    onClick={() => copyTitleText(menuFixedTitle.title, "menu")}
+                    className="flex-shrink-0 text-xs font-medium whitespace-nowrap"
+                    style={{
+                      padding: "6px 12px",
+                      border: `1px solid ${accentHex}`,
+                      color: accentHex,
+                      borderRadius: "6px",
+                      background: "white",
+                    }}
+                  >
+                    {copiedTitle === "menu" ? "✓ コピー済み" : "コピー"}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* Section 1b: Title candidates for intro mode — shown only after streaming finishes */}
+            {articleMode === "intro" && parsedArticle.titles.length > 0 && !isLoading && (
               <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <p className="font-semibold text-gray-800">📝 タイトル候補</p>
@@ -1230,7 +1280,7 @@ export default function Home() {
                         lineHeight: 1.9,
                       }}
                     >
-                      {renderNaverPreview(parsedArticle.body || displayCompletion)}
+                      {renderNaverPreview((articleMode === "menu" && menuFixedTitle?.body) || parsedArticle.body || displayCompletion)}
                     </div>
                   </>
                 )}
