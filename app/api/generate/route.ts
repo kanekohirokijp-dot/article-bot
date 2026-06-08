@@ -7,6 +7,7 @@ export const maxDuration = 60;
 
 function buildSystemPrompt(language: string): string {
   const isJapanese = language === "japanese";
+  const isBoth = language === "both";
 
   const firstPerson = isJapanese
     ? "「私は〜」「〜でした」など"
@@ -85,8 +86,17 @@ function buildSystemPrompt(language: string): string {
 - 「仕事帰りに一杯」→ 「퇴근 후 한잔하는 문화（일본인들은 퇴근 후 가볍게 술 한잔하는 문화가 있어요）」
 - 「〆の一品」→ 「마지막에 먹기 딱 좋은 메뉴（식사 마무리용）」` : "";
 
+  const bothModeSystemRules = isBoth ? `
+
+【両言語出力の構成ルール（必ず守ること）】
+- PART 1（한국어）：上記の韓国語記事作成ルールをすべて適用して韓国語で全文を書くこと
+- PART 2（日本語）：同じ内容を日本語の自然なブログ文体で再構成すること（直訳ではなく）
+- 両パートとも完全な記事として成立させること
+- PART 1の韓国語を省略したり、日本語のみを出力したりしないこと` : "";
+
   return `あなたは${persona}です。以下の情報をもとに、${audience}の日本グルメブログ記事を作成してください。
 ${koreanTextRules}
+${bothModeSystemRules}
 
 【出力形式（必ず守ること）】
 出力は必ず以下の構造に従うこと。それ以外の形式は認めない：
@@ -166,7 +176,17 @@ export async function POST(req: Request) {
   const languageMap: Record<string, string> = {
     korean: "한국어로만 작성해주세요.",
     japanese: "必ず日本語のみで書いてください。韓国語は一切使わないでください。",
-    both: "먼저 한국어로 전체 기사를 작성한 후, 구분선(---) 아래에 일본어 번역을 추가해주세요。",
+    both: `必ず以下の構成で出力してください：
+
+【PART 1: 한국어】
+（韓国語で記事全文を出力。韓国語記事作成ルールをすべて適用すること）
+
+---
+
+【PART 2: 日本語】
+（日本語で同じ記事を出力。自然な日本語ブログ文体で再構成すること）
+
+PART 1の韓国語を省略したり、日本語のみを出力したりしないこと。必ずPART 1の韓国語から始めること。`,
   };
 
   const resolvedLanguageInstruction = languageMap[language] ?? languageMap.japanese;
