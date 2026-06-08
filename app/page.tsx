@@ -3,14 +3,12 @@
 import { useCompletion } from "@ai-sdk/react";
 import { useState, useRef, useEffect } from "react";
 
-type ReviewSource = "食べログ" | "Google" | "Instagram" | "Retty" | "その他";
 type Tone = "casual" | "editorial" | "passionate";
 type Language = "korean" | "japanese" | "both";
 type ArticleMode = "intro" | "menu";
 
 interface Review {
   id: number;
-  source: ReviewSource;
   text: string;
 }
 
@@ -18,7 +16,7 @@ type Store = {
   id: string;
   name: string;
   storeInfo: string;
-  reviews: { source: string; text: string }[];
+  reviews: { text: string }[];
   createdAt: string;
   updatedAt: string;
 };
@@ -51,14 +49,6 @@ const USD_TO_JPY = 150;
 const INPUT_COST_PER_M = 3;
 const OUTPUT_COST_PER_M = 15;
 const USAGE_REGEX = /\n__USAGE__:(\d+):(\d+)$/;
-
-const REVIEW_SOURCES: ReviewSource[] = [
-  "食べログ",
-  "Google",
-  "Instagram",
-  "Retty",
-  "その他",
-];
 
 const TONES: { value: Tone; label: string; desc: string }[] = [
   {
@@ -184,9 +174,9 @@ export default function Home() {
   const [storeName, setStoreName] = useState("");
   const [storeInfo, setStoreInfo] = useState("");
   const [reviews, setReviews] = useState<Review[]>([
-    { id: 1, source: "食べログ", text: "" },
-    { id: 2, source: "食べログ", text: "" },
-    { id: 3, source: "食べログ", text: "" },
+    { id: 1, text: "" },
+    { id: 2, text: "" },
+    { id: 3, text: "" },
   ]);
   const [memo, setMemo] = useState("");
   const [tone, setTone] = useState<Tone>("casual");
@@ -364,7 +354,6 @@ export default function Home() {
       const count = Math.max(3, fetched.length);
       const newReviews: Review[] = Array.from({ length: count }, (_, i) => ({
         id: i + 1,
-        source: "Google" as ReviewSource,
         text: fetched[i] ?? "",
       }));
       setReviews(newReviews);
@@ -386,7 +375,7 @@ export default function Home() {
   function addReview() {
     setReviews((prev) => [
       ...prev,
-      { id: nextReviewId, source: "食べログ", text: "" },
+      { id: nextReviewId, text: "" },
     ]);
     setNextReviewId((n) => n + 1);
   }
@@ -395,11 +384,9 @@ export default function Home() {
     setReviews((prev) => prev.filter((r) => r.id !== id));
   }
 
-  function updateReview(id: number, field: "source" | "text", value: string) {
+  function updateReview(id: number, value: string) {
     setReviews((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, [field]: value as ReviewSource } : r
-      )
+      prev.map((r) => r.id === id ? { ...r, text: value } : r)
     );
   }
 
@@ -411,11 +398,10 @@ export default function Home() {
     setStoreInfo(store.storeInfo);
     const loaded: Review[] = store.reviews.map((r, i) => ({
       id: i + 1,
-      source: r.source as ReviewSource,
       text: r.text,
     }));
     while (loaded.length < 3) {
-      loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+      loaded.push({ id: loaded.length + 1, text: "" });
     }
     setReviews(loaded);
     setNextReviewId(loaded.length + 1);
@@ -431,7 +417,7 @@ export default function Home() {
       storeInfo,
       reviews: reviews
         .filter((r) => r.text.trim())
-        .map((r) => ({ source: r.source, text: r.text })),
+        .map((r) => ({ text: r.text })),
       createdAt: existing?.createdAt || now,
       updatedAt: now,
     });
@@ -446,9 +432,9 @@ export default function Home() {
     setStoreName("");
     setStoreInfo("");
     setReviews([
-      { id: 1, source: "食べログ", text: "" },
-      { id: 2, source: "食べログ", text: "" },
-      { id: 3, source: "食べログ", text: "" },
+      { id: 1, text: "" },
+      { id: 2, text: "" },
+      { id: 3, text: "" },
     ]);
     setNextReviewId(4);
     setShowDeleteConfirm(false);
@@ -485,7 +471,7 @@ export default function Home() {
         storeInfo,
         reviews: reviews
           .filter((r) => r.text.trim())
-          .map((r) => ({ source: r.source, text: r.text })),
+          .map((r) => ({ text: r.text })),
         createdAt: existing?.createdAt || now,
         updatedAt: now,
       });
@@ -497,7 +483,7 @@ export default function Home() {
         storeInfo,
         reviews: reviews
           .filter((r) => r.text.trim())
-          .map((r) => ({ source: r.source, text: r.text })),
+          .map((r) => ({ text: r.text })),
         createdAt: now,
         updatedAt: now,
       });
@@ -633,11 +619,10 @@ export default function Home() {
         setStoreInfo(store.storeInfo);
         const loaded: Review[] = store.reviews.map((r, i) => ({
           id: i + 1,
-          source: r.source as ReviewSource,
           text: r.text,
         }));
         while (loaded.length < 3) {
-          loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+          loaded.push({ id: loaded.length + 1, text: "" });
         }
         setReviews(loaded);
         setNextReviewId(loaded.length + 1);
@@ -974,36 +959,21 @@ export default function Home() {
                   {reviews.map((review, index) => (
                     <div
                       key={review.id}
-                      className="rounded-xl border border-gray-200 p-3 space-y-2"
+                      className="rounded-xl border border-gray-200 p-3"
                     >
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={review.source}
-                          onChange={(e) =>
-                            updateReview(review.id, "source", e.target.value)
-                          }
-                          className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                        >
-                          {REVIEW_SOURCES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                        {index >= 3 && (
+                      {index >= 3 && (
+                        <div className="flex justify-end mb-1">
                           <button
                             onClick={() => removeReview(review.id)}
-                            className="ml-auto text-sm text-red-400 hover:text-red-600"
+                            className="text-xs text-red-400 hover:text-red-600"
                           >
                             削除
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       <textarea
                         value={review.text}
-                        onChange={(e) =>
-                          updateReview(review.id, "text", e.target.value)
-                        }
+                        onChange={(e) => updateReview(review.id, e.target.value)}
                         placeholder="口コミの内容を貼り付けてください"
                         rows={3}
                         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
