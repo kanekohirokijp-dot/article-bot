@@ -705,13 +705,21 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setHistory(lsGetHistory()); setViewingHistory(null); setShowHistory(true); }}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                articleMode === "menu"
+                  ? "text-pink-700 bg-pink-50 hover:bg-pink-100"
+                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+              }`}
             >
               📋 履歴
             </button>
             <button
               onClick={() => { setStats(lsGetStats()); setShowStats(true); }}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                articleMode === "menu"
+                  ? "text-pink-700 bg-pink-50 hover:bg-pink-100"
+                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+              }`}
             >
               📊 統計
             </button>
@@ -750,8 +758,9 @@ export default function Home() {
             <div className="px-6 py-4 border-b border-gray-100">
               <p className="font-semibold text-gray-800">📋 メニュー情報を入力</p>
             </div>
-            <div className="px-6 pb-6 pt-4 space-y-4">
-              <div>
+            <div className="px-6 pb-6 pt-4 space-y-3">
+              {/* Card 1: 店舗名 */}
+              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   店舗名
                   <span className="text-red-500 ml-1">*</span>
@@ -764,7 +773,8 @@ export default function Home() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400"
                 />
               </div>
-              <div>
+              {/* Card 2: メニュー情報 */}
+              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   メニュー情報
                   <span className="text-red-500 ml-1">*</span>
@@ -777,7 +787,8 @@ export default function Home() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
                 />
               </div>
-              <div>
+              {/* Card 3: 紹介記事URL */}
+              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   紹介記事のURL（任意・後から追加可）
                 </label>
@@ -790,7 +801,8 @@ export default function Home() {
                 />
                 <p className="text-xs text-gray-400 mt-1.5">紹介記事を公開したら、このURLをメニュー記事の本文に自動で挿入します</p>
               </div>
-              <div>
+              {/* Card 4: 店舗基本情報 */}
+              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   店舗基本情報
                   <span className="text-red-500 ml-1">*</span>
@@ -817,7 +829,7 @@ export default function Home() {
 
         {/* Step 1 */}
         {articleMode === "intro" && (
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <section className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-colors ${step === 1 ? "border border-indigo-300" : "border border-gray-100"}`}>
           <button
             className="w-full text-left px-6 py-4 flex items-center justify-between"
             onClick={() => setStep(step === 1 ? 0 : 1)}
@@ -834,8 +846,8 @@ export default function Home() {
           {step === 1 && (
             <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
               {/* Google Maps auto-fetch */}
-              <div className="rounded-xl border border-indigo-100 p-4 bg-indigo-50 space-y-3">
-                <p className="text-sm font-medium text-indigo-800">🔍 Google Mapsから自動取得</p>
+              <div className="rounded-xl border border-indigo-200 p-4 bg-white space-y-3 shadow-sm">
+                <p className="text-sm font-bold text-indigo-700">🔍 Google Mapsから自動取得</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1038,7 +1050,7 @@ export default function Home() {
 
         {/* Step 2 */}
         {articleMode === "intro" && (
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <section className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-colors ${step === 2 ? "border border-indigo-300" : "border border-gray-100"}`}>
           <button
             className="w-full text-left px-6 py-4 flex items-center justify-between"
             onClick={() => setStep(step === 2 ? 0 : 2)}
@@ -1135,25 +1147,32 @@ export default function Home() {
 
             {/* Section 1a: Fixed title for menu mode */}
             {articleMode === "menu" && menuFixedTitle && !isLoading && (
-              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 flex items-center gap-3">
-                  <span className="text-sm text-gray-500 whitespace-nowrap">📌 タイトル：</span>
-                  <p className="flex-1 text-sm font-medium text-gray-800 leading-relaxed">{menuFixedTitle.title}</p>
-                  <button
-                    onClick={() => copyTitleText(menuFixedTitle.title, "menu")}
-                    className="flex-shrink-0 text-xs font-medium whitespace-nowrap"
-                    style={{
-                      padding: "6px 12px",
-                      border: `1px solid ${accentHex}`,
-                      color: accentHex,
-                      borderRadius: "6px",
-                      background: "white",
-                    }}
-                  >
-                    {copiedTitle === "menu" ? "✓ コピー済み" : "コピー"}
-                  </button>
-                </div>
-              </section>
+              <div
+                className="flex items-center gap-3"
+                style={{
+                  background: "#f9fafb",
+                  border: "0.5px solid #e5e7eb",
+                  borderRadius: "12px",
+                  padding: "12px 16px",
+                }}
+              >
+                <p className="flex-1 text-gray-800 leading-relaxed" style={{ fontSize: "14px", fontWeight: 500 }}>
+                  📌 {menuFixedTitle.title}
+                </p>
+                <button
+                  onClick={() => copyTitleText(menuFixedTitle.title, "menu")}
+                  className="flex-shrink-0 text-xs font-medium whitespace-nowrap"
+                  style={{
+                    padding: "6px 12px",
+                    border: `1px solid ${accentHex}`,
+                    color: accentHex,
+                    borderRadius: "6px",
+                    background: "white",
+                  }}
+                >
+                  {copiedTitle === "menu" ? "✓ コピー済み" : "コピー"}
+                </button>
+              </div>
             )}
 
             {/* Section 1b: Title candidates for intro mode — shown only after streaming finishes */}
@@ -1209,14 +1228,8 @@ export default function Home() {
             {/* Section 2: Article body */}
             <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {/* Header */}
-              <div className="px-6 py-4 flex items-center gap-3 border-b border-gray-100">
-                <span
-                  className="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0"
-                  style={completion ? { background: accentHex, color: "white" } : { background: "#e5e7eb", color: "#6b7280" }}
-                >
-                  3
-                </span>
-                <span className="font-semibold text-gray-800">③ 生成された記事</span>
+              <div className="px-6 py-4 border-b border-gray-100">
+                <span className="font-semibold text-gray-800">📄 生成された記事</span>
               </div>
 
               {/* Tabs — appear only after streaming finishes */}
@@ -1323,7 +1336,8 @@ export default function Home() {
                       setViewingHistory(null);
                       setShowHistory(true);
                     }}
-                    className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                    className="w-full py-3 rounded-xl text-sm font-medium transition-colors"
+                    style={{ border: `1px solid ${accentHex}`, color: accentHex, background: "white" }}
                   >
                     履歴を見る
                   </button>
