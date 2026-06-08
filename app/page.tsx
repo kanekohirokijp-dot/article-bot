@@ -838,7 +838,7 @@ export default function Home() {
               <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
                 1
               </span>
-              <span className="font-semibold text-gray-800">① 店舗情報を入力</span>
+              <span className="font-semibold text-gray-800">店舗情報を入力</span>
             </div>
             <span className="text-gray-400 text-lg">{step === 1 ? "▲" : "▼"}</span>
           </button>
@@ -1066,7 +1066,7 @@ export default function Home() {
                 2
               </span>
               <span className="font-semibold text-gray-800">
-                ② 記事スタイルを選ぶ
+                記事スタイルを選ぶ
               </span>
             </div>
             <span className="text-gray-400 text-lg">{step === 2 ? "▲" : "▼"}</span>
