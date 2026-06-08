@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 type ReviewSource = "食べログ" | "Google" | "Instagram" | "Retty" | "その他";
 type Tone = "casual" | "editorial" | "passionate";
 type Language = "korean" | "japanese" | "both";
+type ArticleMode = "intro" | "menu";
 
 interface Review {
   id: number;
@@ -173,6 +174,11 @@ function formatDateTime(iso: string): string {
 }
 
 export default function Home() {
+  const [articleMode, setArticleMode] = useState<ArticleMode>("intro");
+  const [menuStoreName, setMenuStoreName] = useState("");
+  const [menuInfo, setMenuInfo] = useState("");
+  const [menuLanguage, setMenuLanguage] = useState<Language>("korean");
+
   const [step, setStep] = useState(1);
   const [storeName, setStoreName] = useState("");
   const [storeInfo, setStoreInfo] = useState("");
@@ -214,14 +220,29 @@ export default function Home() {
   const pendingHistoryRef = useRef<{
     storeId: string;
     storeName: string;
-    tone: Tone;
+    tone: string;
     language: Language;
   } | null>(null);
 
-  const { completion, isLoading, complete, setCompletion } = useCompletion({
+  const { completion: introCompletion, isLoading: introIsLoading, complete: introComplete, setCompletion: setIntroCompletion } = useCompletion({
     api: "/api/generate",
     streamProtocol: "text",
   });
+
+  const { completion: menuCompletion, isLoading: menuIsLoading, complete: menuComplete, setCompletion: setMenuCompletion } = useCompletion({
+    api: "/api/menu",
+    streamProtocol: "text",
+  });
+
+  const completion = articleMode === "intro" ? introCompletion : menuCompletion;
+  const isLoading = articleMode === "intro" ? introIsLoading : menuIsLoading;
+  const setCompletion = (v: string) => {
+    if (articleMode === "intro") setIntroCompletion(v);
+    else setMenuCompletion(v);
+  };
+
+  const accentHex = articleMode === "intro" ? "#4f46e5" : "#db2777";
+  const accentHoverBg = articleMode === "intro" ? "#f5f3ff" : "#fdf2f8";
 
   // Strip usage marker from completion for display and copy
   const displayCompletion = completion.replace(USAGE_REGEX, "");
@@ -419,7 +440,7 @@ export default function Home() {
   }
 
   async function handleGenerate() {
-    setCompletion("");
+    setIntroCompletion("");
     setActiveTab("text");
     setCurrentGenCost(null);
     setCopiedTitle(null);
@@ -471,7 +492,23 @@ export default function Home() {
 
     pendingHistoryRef.current = { storeId, storeName: storeName, tone, language };
 
-    await complete("", { body });
+    await introComplete("", { body });
+  }
+
+  async function handleMenuGenerate() {
+    setMenuCompletion("");
+    setActiveTab("text");
+    setCurrentGenCost(null);
+    setCopiedTitle(null);
+    setStep(3);
+    setTimeout(() => {
+      outputRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+
+    const storeId = "menu-" + crypto.randomUUID();
+    pendingHistoryRef.current = { storeId, storeName: menuStoreName, tone: "menu", language: menuLanguage };
+
+    await menuComplete("", { body: { menuStoreName, menuInfo, language: menuLanguage } });
   }
 
   function markdownToHtml(text: string): string {
@@ -568,25 +605,33 @@ export default function Home() {
   }
 
   function restoreFromHistory(entry: ArticleHistory) {
-    const store = stores.find((s) => s.id === entry.storeId);
-    if (store) {
-      setSelectedStoreId(entry.storeId);
-      setStoreName(store.name);
-      setStoreInfo(store.storeInfo);
-      const loaded: Review[] = store.reviews.map((r, i) => ({
-        id: i + 1,
-        source: r.source as ReviewSource,
-        text: r.text,
-      }));
-      while (loaded.length < 3) {
-        loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+    if (entry.tone === "menu") {
+      setArticleMode("menu");
+      setMenuStoreName(entry.storeName);
+      setMenuLanguage(entry.language as Language);
+      setMenuCompletion(entry.article);
+    } else {
+      setArticleMode("intro");
+      const store = stores.find((s) => s.id === entry.storeId);
+      if (store) {
+        setSelectedStoreId(entry.storeId);
+        setStoreName(store.name);
+        setStoreInfo(store.storeInfo);
+        const loaded: Review[] = store.reviews.map((r, i) => ({
+          id: i + 1,
+          source: r.source as ReviewSource,
+          text: r.text,
+        }));
+        while (loaded.length < 3) {
+          loaded.push({ id: loaded.length + 1, source: "食べログ", text: "" });
+        }
+        setReviews(loaded);
+        setNextReviewId(loaded.length + 1);
       }
-      setReviews(loaded);
-      setNextReviewId(loaded.length + 1);
+      setIntroCompletion(entry.article);
+      setTone(entry.tone as Tone);
+      setLanguage(entry.language as Language);
     }
-    setCompletion(entry.article);
-    setTone(entry.tone as Tone);
-    setLanguage(entry.language as Language);
     setCurrentGenCost(null);
     setCopied(false);
     setCopiedTitle(null);
@@ -598,6 +643,7 @@ export default function Home() {
   }
 
   function getToneLabel(v: string) {
+    if (v === "menu") return "メニュー記事";
     return TONES.find((t) => t.value === v)?.label ?? v;
   }
   function getLangLabel(v: string) {
@@ -631,7 +677,7 @@ export default function Home() {
   const maxDayCount = Math.max(...last7Days.map((d) => d.count), 1);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={{ "--accent-color": accentHex } as React.CSSProperties}>
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
@@ -660,7 +706,97 @@ export default function Home() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Mode toggle */}
+        <div className="flex rounded-xl bg-gray-100 p-1">
+          <button
+            onClick={() => setArticleMode("intro")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              articleMode === "intro"
+                ? "bg-white shadow text-indigo-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            紹介記事
+          </button>
+          <button
+            onClick={() => setArticleMode("menu")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              articleMode === "menu"
+                ? "bg-white shadow text-pink-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            メニュー記事
+          </button>
+        </div>
+
+        {/* Menu form */}
+        {articleMode === "menu" && (
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <p className="font-semibold text-gray-800">📋 メニュー情報を入力</p>
+            </div>
+            <div className="px-6 pb-6 pt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  店舗名
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={menuStoreName}
+                  onChange={(e) => setMenuStoreName(e.target.value)}
+                  placeholder="例：KAMERA / リバーサイドヤオヤ"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  メニュー情報
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <textarea
+                  value={menuInfo}
+                  onChange={(e) => setMenuInfo(e.target.value)}
+                  placeholder={`食べログのメニューページからコピーしてください\nメニュー名・価格・説明など`}
+                  rows={8}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  出力言語
+                </label>
+                <div className="flex gap-2">
+                  {LANGUAGES.map((l) => (
+                    <button
+                      key={l.value}
+                      onClick={() => setMenuLanguage(l.value)}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${
+                        menuLanguage === l.value
+                          ? "border-pink-500 bg-pink-50 text-pink-700"
+                          : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={handleMenuGenerate}
+                disabled={!menuStoreName.trim() || !menuInfo.trim() || menuIsLoading}
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                style={{ background: "linear-gradient(135deg, #db2777, #9d174d)" }}
+              >
+                {menuIsLoading ? "生成中..." : "メニュー記事を生成する ✨"}
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* Step 1 */}
+        {articleMode === "intro" && (
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <button
             className="w-full text-left px-6 py-4 flex items-center justify-between"
@@ -878,8 +1014,10 @@ export default function Home() {
             </div>
           )}
         </section>
+        )}
 
         {/* Step 2 */}
+        {articleMode === "intro" && (
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <button
             className="w-full text-left px-6 py-4 flex items-center justify-between"
@@ -969,6 +1107,7 @@ export default function Home() {
             </div>
           )}
         </section>
+        )}
 
         {/* Step 3 - Output */}
         {(step === 3 || completion) && (
@@ -990,13 +1129,13 @@ export default function Home() {
                         borderRadius: "8px",
                         padding: "12px 16px",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f3ff")}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = accentHoverBg)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                     >
                       <span
                         className="flex-shrink-0 text-xs font-bold text-white flex items-center justify-center"
                         style={{
-                          background: "#4f46e5",
+                          background: accentHex,
                           borderRadius: "50%",
                           width: "22px",
                           height: "22px",
@@ -1010,8 +1149,8 @@ export default function Home() {
                         className="flex-shrink-0 text-xs font-medium transition-colors whitespace-nowrap"
                         style={{
                           padding: "6px 12px",
-                          border: "1px solid #4f46e5",
-                          color: "#4f46e5",
+                          border: `1px solid ${accentHex}`,
+                          color: accentHex,
                           borderRadius: "6px",
                           background: "white",
                         }}
@@ -1029,9 +1168,8 @@ export default function Home() {
               {/* Header */}
               <div className="px-6 py-4 flex items-center gap-3 border-b border-gray-100">
                 <span
-                  className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 ${
-                    completion ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-500"
-                  }`}
+                  className="w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0"
+                  style={completion ? { background: accentHex, color: "white" } : { background: "#e5e7eb", color: "#6b7280" }}
                 >
                   3
                 </span>
@@ -1046,10 +1184,9 @@ export default function Home() {
                       key={tab}
                       onClick={() => setActiveTab(tab)}
                       className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        activeTab === tab
-                          ? "text-indigo-600 border-b-2 border-indigo-600"
-                          : "text-gray-500 hover:text-gray-700"
+                        activeTab === tab ? "" : "text-gray-500 hover:text-gray-700"
                       }`}
+                      style={activeTab === tab ? { color: accentHex, borderBottom: `2px solid ${accentHex}` } : {}}
                     >
                       {tab === "text" ? "テキスト" : "Naverプレビュー"}
                     </button>
@@ -1062,9 +1199,9 @@ export default function Home() {
                 {isLoading && !completion && (
                   <div className="flex items-center gap-3 text-gray-500">
                     <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:0ms]" />
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:150ms]" />
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:300ms]" />
+                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:0ms]" style={{ background: accentHex }} />
+                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms]" style={{ background: accentHex }} />
+                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms]" style={{ background: accentHex }} />
                     </div>
                     <span className="text-sm">記事を生成しています...</span>
                   </div>
@@ -1075,7 +1212,7 @@ export default function Home() {
                   <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
                     {isLoading ? textDisplay : textBodyDisplay}
                     {isLoading && (
-                      <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-0.5 animate-pulse" />
+                      <span className="inline-block w-1.5 h-4 ml-0.5 animate-pulse" style={{ background: accentHex }} />
                     )}
                   </div>
                 )}
@@ -1116,14 +1253,20 @@ export default function Home() {
                   <div className="flex gap-2">
                     <button
                       onClick={copyToClipboard}
-                      className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
+                      className="flex-1 py-3 rounded-xl text-white font-semibold text-sm transition-colors"
+                      style={{ background: accentHex }}
                     >
                       {copied ? "✓ コピーしました" : "📋 Naverブログにコピー"}
                     </button>
                     <button
                       onClick={() => {
-                        setCompletion("");
-                        setStep(2);
+                        if (articleMode === "intro") {
+                          setIntroCompletion("");
+                          setStep(2);
+                        } else {
+                          setMenuCompletion("");
+                          setStep(1);
+                        }
                       }}
                       className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
                     >
@@ -1387,8 +1530,8 @@ export default function Home() {
               gap: "12px",
             }}
           >
-            <div className="article-spinner" />
-            <p style={{ fontSize: "16px", color: "#4f46e5", fontWeight: 500 }}>✨ 記事を生成中...</p>
+            <div className="article-spinner" style={{ borderTopColor: accentHex }} />
+            <p style={{ fontSize: "16px", color: accentHex, fontWeight: 500 }}>✨ 記事を生成中...</p>
             <p style={{ fontSize: "12px", color: "#9ca3af" }}>しばらくお待ちください</p>
           </div>
         </div>
@@ -1402,7 +1545,7 @@ export default function Home() {
             bottom: "32px",
             left: "50%",
             zIndex: 100,
-            background: "#4f46e5",
+            background: accentHex,
             color: "white",
             borderRadius: "24px",
             padding: "12px 24px",
@@ -1420,8 +1563,8 @@ export default function Home() {
         .article-spinner {
           width: 40px;
           height: 40px;
-          border: 3px solid #e0e7ff;
-          border-top-color: #4f46e5;
+          border: 3px solid #e5e7eb;
+          border-top-color: var(--accent-color, #4f46e5);
           border-radius: 50%;
           animation: articleSpin 0.8s linear infinite;
         }
