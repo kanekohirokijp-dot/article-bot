@@ -234,27 +234,46 @@ export default function Home() {
   const displayCompletion = completion.replace(USAGE_REGEX, "");
 
   // Parse title candidates section and body from the AI output
+  // Supports both 【タイトル候補】(Japanese) and 【타이틀 후보】(Korean)
   const parsedArticle = (() => {
     const text = displayCompletion;
-    const titleStart = text.indexOf("【タイトル候補】");
+
+    // Detect title section header (both Japanese and Korean variants)
+    const jaIdx = text.indexOf("【タイトル候補】");
+    const koIdx = text.indexOf("【타이틀 후보】");
+    let titleStart = -1;
+    if (jaIdx !== -1 && koIdx !== -1) titleStart = Math.min(jaIdx, koIdx);
+    else if (jaIdx !== -1) titleStart = jaIdx;
+    else if (koIdx !== -1) titleStart = koIdx;
+
     if (titleStart === -1) return { titles: [] as { label: string; text: string }[], body: text };
 
-    // Find the first line that contains only "---" (after the title section start)
     const afterTitle = text.slice(titleStart);
-    const sepMatch = afterTitle.match(/^-{3}\s*$/m);
-    if (!sepMatch || sepMatch.index == null) return { titles: [] as { label: string; text: string }[], body: text };
 
-    const titleSection = afterTitle.slice(0, sepMatch.index);
-    // Body starts after the "---" line (skip the line itself + trailing newline)
-    const body = afterTitle.slice(sepMatch.index + sepMatch[0].length).replace(/^\r?\n/, "");
+    // Detect separator: strict "---" line first, then "---" at start of line with optional trailing text
+    let sepMatch = afterTitle.match(/^-{3}\s*$/m);
+    if (!sepMatch) sepMatch = afterTitle.match(/^-{3,}[^\n]*/m);
+
+    let titleSection: string;
+    let body: string;
+
+    if (sepMatch && sepMatch.index != null) {
+      titleSection = afterTitle.slice(0, sepMatch.index);
+      body = afterTitle.slice(sepMatch.index + sepMatch[0].length).replace(/^\r?\n/, "");
+    } else {
+      // Fallback: use end of last A/B/C title line as split point
+      const allTitleMatches = [...afterTitle.matchAll(/^([A-C])\.\s*.+$/gm)];
+      if (allTitleMatches.length === 0) return { titles: [] as { label: string; text: string }[], body: text };
+      const lastMatch = allTitleMatches[allTitleMatches.length - 1];
+      const lastEnd = (lastMatch.index ?? 0) + lastMatch[0].length;
+      titleSection = afterTitle.slice(0, lastEnd);
+      body = afterTitle.slice(lastEnd).replace(/^\r?\n+/, "");
+    }
 
     const titles: { label: string; text: string }[] = [];
     for (const m of titleSection.matchAll(/^([A-C])\.\s*(.+)$/gm)) {
       titles.push({ label: m[1], text: m[2].trim() });
     }
-
-    console.log("[parsedArticle] titles:", titles.map((t) => t.text));
-    console.log("[parsedArticle] body (first 100):", body.slice(0, 100));
 
     return { titles, body };
   })();
