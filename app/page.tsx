@@ -186,12 +186,7 @@ export default function Home() {
   const [copiedTitle, setCopiedTitle] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
-  const [placesQuery, setPlacesQuery] = useState("");
-  const [placesFetching, setPlacesFetching] = useState(false);
-  const [placesResult, setPlacesResult] = useState<{
-    type: "success" | "warning" | "error";
-    message: string;
-  } | null>(null);
+  const [photoUrl, setPhotoUrl] = useState("");
 
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
@@ -333,45 +328,6 @@ export default function Home() {
     wasLoadingRef.current = isLoading;
   }, [isLoading, completion]);
 
-  async function fetchFromMaps() {
-    if (!placesQuery.trim()) return;
-    setPlacesFetching(true);
-    setPlacesResult(null);
-    try {
-      const res = await fetch("/api/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: placesQuery.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setPlacesResult({ type: "error", message: `❌ ${data.error ?? "取得に失敗しました"}` });
-        return;
-      }
-      setStoreName(data.storeName ?? "");
-      setStoreInfo(data.storeInfo ?? "");
-      const fetched: string[] = data.reviews ?? [];
-      const count = Math.max(3, fetched.length);
-      const newReviews: Review[] = Array.from({ length: count }, (_, i) => ({
-        id: i + 1,
-        text: fetched[i] ?? "",
-      }));
-      setReviews(newReviews);
-      setNextReviewId(count + 1);
-      if (data.reviewCount >= 3) {
-        setPlacesResult({ type: "success", message: `✅ 店舗情報と口コミ${data.reviewCount}件を取得しました` });
-      } else if (data.reviewCount > 0) {
-        setPlacesResult({ type: "warning", message: `⚠️ 口コミが${data.reviewCount}件のみ取得できました。不足分を手動で追加してください` });
-      } else {
-        setPlacesResult({ type: "error", message: "❌ ポジティブな口コミが取得できませんでした。手動で入力してください" });
-      }
-    } catch {
-      setPlacesResult({ type: "error", message: "❌ 取得に失敗しました。通信環境を確認してください" });
-    } finally {
-      setPlacesFetching(false);
-    }
-  }
-
   function addReview() {
     setReviews((prev) => [
       ...prev,
@@ -456,6 +412,7 @@ export default function Home() {
       memo,
       tone,
       language,
+      photoUrl,
     };
     console.log("[page] sending to API:", body);
 
@@ -830,40 +787,6 @@ export default function Home() {
 
           {step === 1 && (
             <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
-              {/* Google Maps auto-fetch */}
-              <div className="rounded-xl border border-indigo-200 p-4 bg-white space-y-3 shadow-sm">
-                <p className="text-sm font-bold text-indigo-700">🔍 Google Mapsから自動取得</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={placesQuery}
-                    onChange={(e) => setPlacesQuery(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) fetchFromMaps(); }}
-                    placeholder="店名またはGoogle Maps URLを入力"
-                    disabled={placesFetching}
-                    className="flex-1 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:opacity-60"
-                  />
-                  <button
-                    onClick={fetchFromMaps}
-                    disabled={placesFetching || !placesQuery.trim()}
-                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  >
-                    {placesFetching ? (
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
-                    ) : "取得する"}
-                  </button>
-                </div>
-                {placesResult && (
-                  <p className={`text-sm ${
-                    placesResult.type === "success" ? "text-green-700" :
-                    placesResult.type === "warning" ? "text-yellow-700" :
-                    "text-red-600"
-                  }`}>
-                    {placesResult.message}
-                  </p>
-                )}
-              </div>
-
               {/* Saved stores */}
               <div className="rounded-xl border border-gray-200 p-4 bg-gray-50 space-y-2">
                 <p className="text-sm font-medium text-gray-700">🏪 保存済み店舗から読み込む</p>
@@ -1002,12 +925,28 @@ export default function Home() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  写真引用URL
+                  <span className="text-red-500 ml-1">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="Google MapsのシェアURLを貼り付け（店舗ページ→共有→リンクをコピー）"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">記事末尾に 사진 인용：[URL] として自動挿入されます</p>
+              </div>
+
               <button
                 onClick={() => setStep(2)}
                 disabled={
                   !storeName.trim() ||
                   !storeInfo.trim() ||
-                  !reviews.slice(0, 3).every((r) => r.text.trim())
+                  !reviews.slice(0, 3).every((r) => r.text.trim()) ||
+                  !photoUrl.trim()
                 }
                 className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
