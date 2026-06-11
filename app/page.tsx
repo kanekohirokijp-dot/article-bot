@@ -53,17 +53,17 @@ const USAGE_REGEX = /\n__USAGE__:(\d+):(\d+)$/;
 const TONES: { value: Tone; label: string; desc: string }[] = [
   {
     value: "casual",
-    label: "カジュアル体験談",
+    label: "CASUAL",
     desc: "友達に話しかけるような親しみやすい口調",
   },
   {
     value: "editorial",
-    label: "編集者目線",
+    label: "EDITORIAL",
     desc: "客観的で洗練された読み物スタイル",
   },
   {
     value: "passionate",
-    label: "熱量系",
+    label: "HYPE",
     desc: "興奮・感動を前面に出した熱い表現",
   },
 ];
@@ -226,9 +226,6 @@ export default function Home() {
     if (articleMode === "intro") setIntroCompletion(v);
     else setMenuCompletion(v);
   };
-
-  const accentHex = articleMode === "intro" ? "#4f46e5" : "#db2777";
-  const accentHoverBg = articleMode === "intro" ? "#f5f3ff" : "#fdf2f8";
 
   // Strip usage marker from completion for display and copy
   const displayCompletion = completion.replace(USAGE_REGEX, "");
@@ -651,715 +648,387 @@ export default function Home() {
   })();
   const maxDayCount = Math.max(...last7Days.map((d) => d.count), 1);
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#f5f4f0',
+    border: '0.5px solid #d8d6d0',
+    padding: '10px 12px',
+    fontSize: '13px',
+    color: '#1a1a1a',
+    outline: 'none',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase' as const,
+    color: '#1a1a1a',
+  };
+  const todayDate = (() => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
+  })();
+  const todayCount = stats?.history.find(h => h.date === todayDate)?.count ?? 0;
+
   return (
-    <div className="min-h-screen bg-gray-50" style={{ "--accent-color": accentHex } as React.CSSProperties}>
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              Naver블로그 記事ジェネレーター
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              韓国人観光客向けグルメ記事を自動生成
-            </p>
+    <div style={{ minHeight: '100vh', background: '#f5f4f0', fontFamily: "'Space Grotesk', sans-serif", color: '#1a1a1a' }}>
+
+      {/* TOP BAR */}
+      <header style={{ background: '#1a1a1a', padding: '0 24px' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', letterSpacing: '0.08em' }}>LOCAL STANDARD TOKYO</span>
+            <span style={{ fontSize: '10px', color: '#666', letterSpacing: '0.12em', textTransform: 'uppercase' }}>ARTICLE GENERATOR</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setHistory(lsGetHistory()); setViewingHistory(null); setShowHistory(true); }}
-              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                articleMode === "menu"
-                  ? "text-pink-700 bg-pink-50 hover:bg-pink-100"
-                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
-              }`}
-            >
-              📋 履歴
-            </button>
-            <button
-              onClick={() => { setStats(lsGetStats()); setShowStats(true); }}
-              className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                articleMode === "menu"
-                  ? "text-pink-700 bg-pink-50 hover:bg-pink-100"
-                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
-              }`}
-            >
-              📊 統計
-            </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {([
+              { label: 'HISTORY', onClick: () => { setHistory(lsGetHistory()); setViewingHistory(null); setShowHistory(true); } },
+              { label: 'STATS', onClick: () => { setStats(lsGetStats()); setShowStats(true); } },
+            ] as { label: string; onClick: () => void }[]).map(({ label, onClick }) => (
+              <button
+                key={label}
+                onClick={onClick}
+                style={{ fontSize: '10px', color: '#aaa', border: '0.5px solid #444', background: 'none', padding: '6px 12px', letterSpacing: '0.08em', cursor: 'pointer', textTransform: 'uppercase', fontFamily: 'inherit' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#aaa'; }}
+              >{label}</button>
+            ))}
           </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Mode toggle */}
-        <div className="flex rounded-xl bg-gray-100 p-1">
-          <button
-            onClick={() => setArticleMode("intro")}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              articleMode === "intro"
-                ? "bg-white shadow text-indigo-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            紹介記事
-          </button>
-          <button
-            onClick={() => setArticleMode("menu")}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              articleMode === "menu"
-                ? "bg-white shadow text-pink-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            メニュー記事
-          </button>
-        </div>
-
-        {/* Menu form */}
-        {articleMode === "menu" && (
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <p className="font-semibold text-gray-800">📋 メニュー情報を入力</p>
-            </div>
-            <div className="px-6 pb-6 pt-4 space-y-3">
-              {/* Card 1: 店舗名 */}
-              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  店舗名
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={menuStoreName}
-                  onChange={(e) => setMenuStoreName(e.target.value)}
-                  placeholder="例：KAMERA / リバーサイドヤオヤ"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400"
-                />
-              </div>
-              {/* Card 2: メニュー情報 */}
-              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  メニュー情報
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  value={menuInfo}
-                  onChange={(e) => setMenuInfo(e.target.value)}
-                  placeholder={`食べログのメニューページからコピーしてください\nメニュー名・価格・説明など`}
-                  rows={8}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
-                />
-              </div>
-              {/* Card 3: 紹介記事URL */}
-              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  紹介記事のURL（任意・後から追加可）
-                </label>
-                <input
-                  type="text"
-                  value={menuArticleUrl}
-                  onChange={(e) => setMenuArticleUrl(e.target.value)}
-                  placeholder="例：https://blog.naver.com/xxx/123456789"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400"
-                />
-                <p className="text-xs text-gray-400 mt-1.5">紹介記事を公開したら、このURLをメニュー記事の本文に自動で挿入します</p>
-              </div>
-              {/* Card 4: 店舗基本情報 */}
-              <div style={{ border: "0.5px solid #e5e7eb", borderRadius: "12px", padding: "16px" }}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  店舗基本情報
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  value={menuStoreInfo}
-                  onChange={(e) => setMenuStoreInfo(e.target.value)}
-                  placeholder="食べログ・Googleマップなどから住所・営業時間・アクセスをコピーしてください"
-                  rows={4}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none"
-                />
-              </div>
+      {/* MODE TOGGLE */}
+      <div style={{ background: '#1a1a1a', borderTop: '0.5px solid #2a2a2a' }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex' }}>
+          {([
+            { mode: 'intro' as ArticleMode, label: 'REVIEW ARTICLE' },
+            { mode: 'menu' as ArticleMode, label: 'MENU ARTICLE' },
+          ]).map(({ mode, label }) => {
+            const isActive = articleMode === mode;
+            const color = mode === 'menu' ? '#e8a020' : '#fff';
+            return (
               <button
-                onClick={handleMenuGenerate}
-                disabled={!menuStoreName.trim() || !menuInfo.trim() || !menuStoreInfo.trim() || menuIsLoading}
-                className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-                style={{ background: "linear-gradient(135deg, #db2777, #9d174d)" }}
-              >
-                {menuIsLoading ? "生成中..." : "メニュー記事を生成する ✨"}
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Step 1 */}
-        {articleMode === "intro" && (
-        <section className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-colors ${step === 1 ? "border border-indigo-300" : "border border-gray-100"}`}>
-          <button
-            className="w-full text-left px-6 py-4 flex items-center justify-between"
-            onClick={() => setStep(step === 1 ? 0 : 1)}
-          >
-            <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">
-                1
-              </span>
-              <span className="font-semibold text-gray-800">店舗情報を入力</span>
-            </div>
-            <span className="text-gray-400 text-lg">{step === 1 ? "▲" : "▼"}</span>
-          </button>
-
-          {step === 1 && (
-            <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
-              {/* Saved stores */}
-              <div className="rounded-xl border border-gray-200 p-4 bg-gray-50 space-y-2">
-                <p className="text-sm font-medium text-gray-700">🏪 保存済み店舗から読み込む</p>
-                {stores.length === 0 ? (
-                  <p className="text-sm text-gray-400">保存済みの店舗はありません</p>
-                ) : (
-                  <>
-                    <div className="flex gap-2">
-                      <select
-                        value={selectedStoreId ?? ""}
-                        onChange={(e) => {
-                          if (e.target.value === "") {
-                            setSelectedStoreId(null);
-                          } else {
-                            selectStore(e.target.value);
-                          }
-                        }}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                      >
-                        <option value="">（新規作成）</option>
-                        {stores.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedStoreId && (
-                        <button
-                          onClick={() => setShowDeleteConfirm(true)}
-                          className="px-3 py-2 rounded-lg border border-red-200 text-red-500 text-sm hover:bg-red-50 transition-colors flex-shrink-0"
-                          title="削除"
-                        >
-                          🗑️
-                        </button>
-                      )}
-                    </div>
-                    {selectedStoreId && (
-                      <button
-                        onClick={saveCurrentStore}
-                        className="w-full py-2 rounded-lg border border-indigo-300 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition-colors"
-                      >
-                        更新して保存
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  店名
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  placeholder="例：KAMERA / リバーサイドヤオヤ"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  店舗情報を貼り付けてください
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  value={storeInfo}
-                  onChange={(e) => setStoreInfo(e.target.value)}
-                  placeholder={`店名・住所・営業時間・メニュー・価格帯など\nGoogle マップや食べログのテキストをそのまま貼り付けてOK`}
-                  rows={7}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">
-                    口コミ
-                    <span className="text-red-500 ml-1">*</span>
-                  </label>
-                  <button
-                    onClick={addReview}
-                    className="text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1"
-                  >
-                    <span className="text-lg leading-none">+</span> 口コミを追加
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mb-2">実際の口コミを3件以上入力してください（記事の素材として使用します）</p>
-
-                <div className="space-y-3">
-                  {reviews.map((review, index) => (
-                    <div
-                      key={review.id}
-                      className="rounded-xl border border-gray-200 p-3"
-                    >
-                      {index >= 3 && (
-                        <div className="flex justify-end mb-1">
-                          <button
-                            onClick={() => removeReview(review.id)}
-                            className="text-xs text-red-400 hover:text-red-600"
-                          >
-                            削除
-                          </button>
-                        </div>
-                      )}
-                      <textarea
-                        value={review.text}
-                        onChange={(e) => updateReview(review.id, e.target.value)}
-                        placeholder="口コミの内容を貼り付けてください"
-                        rows={3}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {!reviews.slice(0, 3).every((r) => r.text.trim()) && (
-                  <p className="text-sm text-red-500 mt-2">
-                    口コミを3件以上入力してください
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  取材メモ・補足情報（任意）
-                </label>
-                <textarea
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  placeholder="実際に訪問して感じたこと、こだわり情報、写真の説明など"
-                  rows={4}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  写真引用URL
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="Google MapsのシェアURLを貼り付け（店舗ページ→共有→リンクをコピー）"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-                <p className="text-xs text-gray-400 mt-1.5">記事末尾に 사진 인용：[URL] として自動挿入されます</p>
-              </div>
-
-              <button
-                onClick={() => setStep(2)}
-                disabled={
-                  !storeName.trim() ||
-                  !storeInfo.trim() ||
-                  !reviews.slice(0, 3).every((r) => r.text.trim()) ||
-                  !photoUrl.trim()
-                }
-                className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                次へ：記事スタイルを選ぶ →
-              </button>
-            </div>
-          )}
-        </section>
-        )}
-
-        {/* Step 2 */}
-        {articleMode === "intro" && (
-        <section className={`bg-white rounded-2xl shadow-sm overflow-hidden transition-colors ${step === 2 ? "border border-indigo-300" : "border border-gray-100"}`}>
-          <button
-            className="w-full text-left px-6 py-4 flex items-center justify-between"
-            onClick={() => setStep(step === 2 ? 0 : 2)}
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className={`w-7 h-7 rounded-full text-sm font-bold flex items-center justify-center flex-shrink-0 ${
-                  step >= 2
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                2
-              </span>
-              <span className="font-semibold text-gray-800">
-                記事スタイルを選ぶ
-              </span>
-            </div>
-            <span className="text-gray-400 text-lg">{step === 2 ? "▲" : "▼"}</span>
-          </button>
-
-          {step === 2 && (
-            <div className="px-6 pb-6 space-y-5 border-t border-gray-100 pt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  記事のトーン
-                </label>
-                <div className="space-y-2">
-                  {TONES.map((t) => (
-                    <label
-                      key={t.value}
-                      className={`flex items-start gap-3 rounded-xl border-2 p-4 cursor-pointer transition-colors ${
-                        tone === t.value
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="tone"
-                        value={t.value}
-                        checked={tone === t.value}
-                        onChange={() => setTone(t.value)}
-                        className="mt-0.5 accent-indigo-600"
-                      />
-                      <div>
-                        <p className="font-medium text-sm text-gray-800">
-                          {t.label}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{t.desc}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  出力言語
-                </label>
-                <div className="flex gap-2">
-                  {LANGUAGES.map((l) => (
-                    <button
-                      key={l.value}
-                      onClick={() => setLanguage(l.value)}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${
-                        language === l.value
-                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                          : "border-gray-200 text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={handleGenerate}
-                disabled={!storeInfo.trim() || isLoading}
-                className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}
-              >
-                {isLoading ? "生成中..." : "記事を生成する ✨"}
-              </button>
-            </div>
-          )}
-        </section>
-        )}
-
-        {/* Step 3 - Output */}
-        {(step === 3 || completion) && (
-          <div ref={outputRef} className="space-y-4">
-
-            {/* Section 1a: Fixed title for menu mode */}
-            {articleMode === "menu" && menuFixedTitle && !isLoading && (
-              <div
-                className="flex items-center gap-3"
+                key={mode}
+                onClick={() => setArticleMode(mode)}
                 style={{
-                  background: "#f9fafb",
-                  border: "0.5px solid #e5e7eb",
-                  borderRadius: "12px",
-                  padding: "12px 16px",
+                  flex: 1, padding: '11px 0', fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                  background: 'none', border: 'none', borderBottom: isActive ? `2px solid ${color}` : '2px solid transparent',
+                  cursor: 'pointer', fontFamily: 'inherit', color: isActive ? color : '#555',
                 }}
-              >
-                <p className="flex-1 text-gray-800 leading-relaxed" style={{ fontSize: "14px", fontWeight: 500 }}>
-                  📌 {menuFixedTitle.title}
-                </p>
-                <button
-                  onClick={() => copyTitleText(menuFixedTitle.title, "menu")}
-                  className="flex-shrink-0 text-xs font-medium whitespace-nowrap"
-                  style={{
-                    padding: "6px 12px",
-                    border: `1px solid ${accentHex}`,
-                    color: accentHex,
-                    borderRadius: "6px",
-                    background: "white",
-                  }}
-                >
-                  {copiedTitle === "menu" ? "✓ コピー済み" : "コピー"}
+              >{label}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <main style={{ maxWidth: '640px', margin: '0 auto', padding: '24px 24px 88px' }}>
+
+        {/* ── MENU MODE ── */}
+        {articleMode === 'menu' && (
+          <div>
+            <div style={{ fontSize: '9px', color: '#888', letterSpacing: '0.12em', fontWeight: 700, textTransform: 'uppercase', marginBottom: '16px' }}>01 — MENU INFORMATION</div>
+
+            {([
+              {
+                label: 'STORE NAME', required: true,
+                node: <input type="text" value={menuStoreName} onChange={(e) => setMenuStoreName(e.target.value)} placeholder="例：KAMERA / リバーサイドヤオヤ" style={inputStyle} />,
+              },
+              {
+                label: 'MENU INFO', required: true,
+                node: <textarea value={menuInfo} onChange={(e) => setMenuInfo(e.target.value)} placeholder="食べログのメニューページからコピーしてください" rows={8} style={{ ...inputStyle, resize: 'none' }} />,
+              },
+              {
+                label: 'REVIEW ARTICLE URL', required: false, hint: '記事公開後に追加するとリンクが自動挿入されます',
+                node: <input type="text" value={menuArticleUrl} onChange={(e) => setMenuArticleUrl(e.target.value)} placeholder="https://blog.naver.com/xxx/123456789" style={inputStyle} />,
+              },
+              {
+                label: 'STORE DETAILS', required: true,
+                node: <textarea value={menuStoreInfo} onChange={(e) => setMenuStoreInfo(e.target.value)} placeholder="食べログ・Googleマップなどから住所・営業時間・アクセスをコピーしてください" rows={4} style={{ ...inputStyle, resize: 'none' }} />,
+              },
+            ] as { label: string; required: boolean; hint?: string; node: React.ReactNode }[]).map(({ label, required, hint, node }) => (
+              <div key={label} style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+                <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>
+                  {label}{required && <span style={{ color: '#e8a020', marginLeft: '4px' }}>*</span>}
+                </div>
+                {node}
+                {hint && <p style={{ fontSize: '10px', color: '#888', marginTop: '6px' }}>{hint}</p>}
+              </div>
+            ))}
+
+            <button
+              onClick={handleMenuGenerate}
+              disabled={!menuStoreName.trim() || !menuInfo.trim() || !menuStoreInfo.trim() || menuIsLoading}
+              style={{ width: '100%', padding: '14px', background: '#e8a020', color: '#1a1a1a', border: 'none', fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: (!menuStoreName.trim() || !menuInfo.trim() || !menuStoreInfo.trim() || menuIsLoading) ? 0.4 : 1 }}
+            >{menuIsLoading ? 'GENERATING...' : 'GENERATE MENU →'}</button>
+          </div>
+        )}
+
+        {/* ── REVIEW MODE ── */}
+        {articleMode === 'intro' && (
+          <div>
+            <div style={{ fontSize: '9px', color: '#888', letterSpacing: '0.12em', fontWeight: 700, textTransform: 'uppercase', marginBottom: '16px' }}>01 — STORE INFORMATION</div>
+
+            {/* Saved stores */}
+            {stores.length > 0 && (
+              <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+                <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>SAVED STORES</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={selectedStoreId ?? ''}
+                    onChange={(e) => { if (e.target.value === '') setSelectedStoreId(null); else selectStore(e.target.value); }}
+                    style={{ flex: 1, ...inputStyle, padding: '8px 12px' }}
+                  >
+                    <option value="">（新規作成）</option>
+                    {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  {selectedStoreId && (
+                    <button onClick={() => setShowDeleteConfirm(true)} style={{ padding: '8px 14px', border: '0.5px solid #d8d6d0', background: '#fff', color: '#888', fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>DEL</button>
+                  )}
+                </div>
+                {selectedStoreId && (
+                  <button onClick={saveCurrentStore} style={{ width: '100%', marginTop: '8px', padding: '8px', border: '0.5px solid #d8d6d0', background: '#fff', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', color: '#1a1a1a', fontFamily: 'inherit' }}>UPDATE & SAVE</button>
+                )}
+              </div>
+            )}
+
+            {/* Store name */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>STORE NAME <span style={{ color: '#e8a020' }}>*</span></div>
+              <input type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="例：KAMERA / リバーサイドヤオヤ" style={inputStyle} />
+            </div>
+
+            {/* Store info */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>STORE INFO <span style={{ color: '#e8a020' }}>*</span></div>
+              <textarea value={storeInfo} onChange={(e) => setStoreInfo(e.target.value)} placeholder={"店名・住所・営業時間・メニュー・価格帯など\nGoogle マップや食べログのテキストをそのまま貼り付けてOK"} rows={6} style={{ ...inputStyle, resize: 'none' }} />
+            </div>
+
+            {/* Reviews */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div style={labelStyle}>REVIEWS <span style={{ color: '#e8a020' }}>*</span></div>
+                <button onClick={addReview} style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#e8a020', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ ADD REVIEW</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {reviews.map((review, index) => (
+                  <div key={review.id} style={{ border: '0.5px solid #d8d6d0', padding: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.1em', color: '#888', textTransform: 'uppercase' }}>REVIEW {String(index + 1).padStart(2, '0')}</span>
+                      {index >= 3 && <button onClick={() => removeReview(review.id)} style={{ fontSize: '9px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' }}>REMOVE</button>}
+                    </div>
+                    <textarea value={review.text} onChange={(e) => updateReview(review.id, e.target.value)} placeholder="口コミの内容を貼り付けてください" rows={3} style={{ ...inputStyle, resize: 'none' }} />
+                  </div>
+                ))}
+              </div>
+              {!reviews.slice(0, 3).every((r) => r.text.trim()) && (
+                <p style={{ fontSize: '10px', color: '#888', marginTop: '8px', letterSpacing: '0.04em' }}>3件以上の口コミを入力してください</p>
+              )}
+            </div>
+
+            {/* Photo URL */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>PHOTO URL <span style={{ color: '#e8a020' }}>*</span></div>
+              <input type="text" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="Google MapsのシェアURLを貼り付け" style={inputStyle} />
+              <p style={{ fontSize: '10px', color: '#888', marginTop: '6px' }}>記事末尾に 사진 인용：[Google Maps](URL) として挿入されます</p>
+            </div>
+
+            {/* Notes */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '28px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '8px' }}>
+                NOTES <span style={{ fontSize: '9px', fontWeight: 400, color: '#888', letterSpacing: '0.04em', textTransform: 'none' }}>(OPTIONAL)</span>
+              </div>
+              <textarea value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="実際に訪問して感じたこと、こだわり情報など" rows={3} style={{ ...inputStyle, resize: 'none' }} />
+            </div>
+
+            {/* Section 02 */}
+            <div style={{ fontSize: '9px', color: '#888', letterSpacing: '0.12em', fontWeight: 700, textTransform: 'uppercase', marginBottom: '16px' }}>02 — ARTICLE STYLE</div>
+
+            {/* Tone */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '10px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '12px' }}>TONE</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {TONES.map((t) => (
+                  <button key={t.value} onClick={() => setTone(t.value)} style={{ flex: 1, padding: '10px 0', border: '0.5px solid #d8d6d0', background: tone === t.value ? '#1a1a1a' : '#fff', color: tone === t.value ? '#fff' : '#1a1a1a', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>{t.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language */}
+            <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ ...labelStyle, display: 'block', marginBottom: '12px' }}>LANGUAGE</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {LANGUAGES.map((l) => (
+                  <button key={l.value} onClick={() => setLanguage(l.value)} style={{ flex: 1, padding: '10px 0', border: '0.5px solid #d8d6d0', background: language === l.value ? '#1a1a1a' : '#fff', color: language === l.value ? '#fff' : '#1a1a1a', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{l.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Generate */}
+            <button
+              onClick={handleGenerate}
+              disabled={!storeName.trim() || !storeInfo.trim() || !reviews.slice(0, 3).every((r) => r.text.trim()) || !photoUrl.trim() || isLoading}
+              style={{ width: '100%', padding: '14px', background: '#e8a020', color: '#1a1a1a', border: 'none', fontSize: '12px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', opacity: (!storeName.trim() || !storeInfo.trim() || !reviews.slice(0, 3).every((r) => r.text.trim()) || !photoUrl.trim() || isLoading) ? 0.4 : 1 }}
+            >{isLoading ? 'GENERATING...' : 'GENERATE ARTICLE →'}</button>
+          </div>
+        )}
+
+        {/* ── OUTPUT ── */}
+        {(displayCompletion || isLoading) && (
+          <div ref={outputRef} style={{ marginTop: '32px' }}>
+
+            {/* Menu fixed title */}
+            {articleMode === 'menu' && menuFixedTitle && !isLoading && (
+              <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '14px 16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <p style={{ flex: 1, fontSize: '13px', fontWeight: 500, color: '#1a1a1a', lineHeight: 1.5 }}>{menuFixedTitle.title}</p>
+                <button onClick={() => copyTitleText(menuFixedTitle.title, 'menu')} style={{ flexShrink: 0, fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '6px 12px', border: '0.5px solid #1a1a1a', color: '#1a1a1a', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  {copiedTitle === 'menu' ? 'COPIED ✓' : 'COPY'}
                 </button>
               </div>
             )}
 
-            {/* Section 1b: Title candidates for intro mode — shown only after streaming finishes */}
-            {articleMode === "intro" && parsedArticle.titles.length > 0 && !isLoading && (
-              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <p className="font-semibold text-gray-800">📝 タイトル候補</p>
+            {/* Title candidates */}
+            {articleMode === 'intro' && parsedArticle.titles.length > 0 && !isLoading && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#1a1a1a', flexShrink: 0 }}>TITLE CANDIDATES</span>
+                  <div style={{ flex: 1, height: '0.5px', background: '#d8d6d0' }} />
                 </div>
-                <div className="px-6 py-4 space-y-3">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {parsedArticle.titles.map(({ label, text }) => (
-                    <div
-                      key={label}
-                      className="flex items-center gap-3 transition-colors"
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        padding: "12px 16px",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = accentHoverBg)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                    >
-                      <span
-                        className="flex-shrink-0 text-xs font-bold text-white flex items-center justify-center"
-                        style={{
-                          background: accentHex,
-                          borderRadius: "50%",
-                          width: "22px",
-                          height: "22px",
-                        }}
-                      >
-                        {label}
-                      </span>
-                      <p className="flex-1 text-sm text-gray-800 leading-relaxed">{text}</p>
-                      <button
-                        onClick={() => copyTitleText(text, label)}
-                        className="flex-shrink-0 text-xs font-medium transition-colors whitespace-nowrap"
-                        style={{
-                          padding: "6px 12px",
-                          border: `1px solid ${accentHex}`,
-                          color: accentHex,
-                          borderRadius: "6px",
-                          background: "white",
-                        }}
-                      >
-                        {copiedTitle === label ? "✓ コピー済み" : "コピー"}
+                    <div key={label} style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ flexShrink: 0, width: '22px', height: '22px', background: '#1a1a1a', color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{label}</span>
+                      <p style={{ flex: 1, fontSize: '13px', color: '#1a1a1a', lineHeight: 1.5 }}>{text}</p>
+                      <button onClick={() => copyTitleText(text, label)} style={{ flexShrink: 0, fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '6px 12px', border: '0.5px solid #d8d6d0', color: '#888', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                        {copiedTitle === label ? 'COPIED ✓' : 'COPY'}
                       </button>
                     </div>
                   ))}
                 </div>
-              </section>
+              </div>
             )}
 
-            {/* Section 2: Article body */}
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-100">
-                <span className="font-semibold text-gray-800">📄 生成された記事</span>
+            {/* Article body */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#1a1a1a', flexShrink: 0 }}>GENERATED ARTICLE</span>
+                <div style={{ flex: 1, height: '0.5px', background: '#d8d6d0' }} />
               </div>
 
-              {/* Tabs — appear only after streaming finishes */}
+              {/* Tabs */}
               {displayCompletion && !isLoading && (
-                <div className="flex border-b border-gray-100">
-                  {(["text", "preview"] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                        activeTab === tab ? "" : "text-gray-500 hover:text-gray-700"
-                      }`}
-                      style={activeTab === tab ? { color: accentHex, borderBottom: `2px solid ${accentHex}` } : {}}
-                    >
-                      {tab === "text" ? "テキスト" : "Naverプレビュー"}
+                <div style={{ display: 'flex', borderBottom: '0.5px solid #d8d6d0' }}>
+                  {(['text', 'preview'] as const).map((tab) => (
+                    <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '10px 0', fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', border: 'none', borderBottom: activeTab === tab ? '2px solid #1a1a1a' : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', color: activeTab === tab ? '#1a1a1a' : '#888' }}>
+                      {tab === 'text' ? 'TEXT' : 'NAVER PREVIEW'}
                     </button>
                   ))}
                 </div>
               )}
 
               {/* Content */}
-              <div className="px-6 py-5">
+              <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', borderTop: (displayCompletion && !isLoading) ? 'none' : '0.5px solid #d8d6d0', padding: '16px' }}>
                 {isLoading && !completion && (
-                  <div className="flex items-center gap-3 text-gray-500">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:0ms]" style={{ background: accentHex }} />
-                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms]" style={{ background: accentHex }} />
-                      <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms]" style={{ background: accentHex }} />
-                    </div>
-                    <span className="text-sm">記事を生成しています...</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
+                    <div className="lst-spinner" />
+                    <span style={{ fontSize: '11px', color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>GENERATING...</span>
                   </div>
                 )}
-
-                {/* Text tab (also shown during streaming) */}
-                {completion && (isLoading || activeTab === "text") && (
-                  <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
+                {completion && (isLoading || activeTab === 'text') && (
+                  <div style={{ fontSize: '13px', color: '#1a1a1a', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                     {isLoading ? textDisplay : textBodyDisplay}
-                    {isLoading && (
-                      <span className="inline-block w-1.5 h-4 ml-0.5 animate-pulse" style={{ background: accentHex }} />
-                    )}
+                    {isLoading && <span style={{ display: 'inline-block', width: '2px', height: '14px', marginLeft: '2px', background: '#e8a020', verticalAlign: 'text-bottom', animation: 'lstBlink 1s step-end infinite' }} />}
                   </div>
                 )}
-
-                {/* Naver preview tab */}
-                {displayCompletion && !isLoading && activeTab === "preview" && (
+                {displayCompletion && !isLoading && activeTab === 'preview' && (
                   <>
                     <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');`}</style>
-                    <div
-                      style={{
-                        fontFamily: "'Noto Sans KR', sans-serif",
-                        maxWidth: "680px",
-                        margin: "0 auto",
-                        background: "#fff",
-                        lineHeight: 1.9,
-                      }}
-                    >
-                      {renderNaverPreview((articleMode === "menu" && menuFixedTitle?.body) || parsedArticle.body || displayCompletion)}
+                    <div style={{ fontFamily: "'Noto Sans KR', sans-serif", maxWidth: '680px', margin: '0 auto', lineHeight: 1.9 }}>
+                      {renderNaverPreview((articleMode === 'menu' && menuFixedTitle?.body) || parsedArticle.body || displayCompletion)}
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Token cost summary */}
+              {/* Token cost */}
               {currentGenCost && !isLoading && (
-                <div className="px-6 pb-2">
-                  <p className="text-xs text-gray-400">
-                    今回：入力 {currentGenCost.inputTokens.toLocaleString()} tokens / 出力 {currentGenCost.outputTokens.toLocaleString()} tokens / 約¥{Math.ceil(currentGenCost.costUSD * USD_TO_JPY)}
-                    {stats && stats.totalGenerations > 0 && (
-                      <> | 累計：{stats.totalGenerations}回 / 約¥{Math.ceil(stats.totalCostUSD * USD_TO_JPY).toLocaleString()}</>
-                    )}
-                  </p>
-                </div>
+                <p style={{ fontSize: '10px', color: '#888', marginTop: '8px', letterSpacing: '0.02em' }}>
+                  入力 {currentGenCost.inputTokens.toLocaleString()} tokens / 出力 {currentGenCost.outputTokens.toLocaleString()} tokens / 約¥{Math.ceil(currentGenCost.costUSD * USD_TO_JPY)}
+                </p>
               )}
 
+              {/* Actions */}
               {displayCompletion && !isLoading && (
-                <div className="px-6 pb-5 space-y-2">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={copyToClipboard}
-                      className="flex-1 py-3 rounded-xl text-white font-semibold text-sm transition-colors"
-                      style={{ background: accentHex }}
-                    >
-                      {copied ? "✓ コピーしました" : "📋 Naverブログにコピー"}
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={copyToClipboard} style={{ flex: 1, padding: '12px', background: '#1a1a1a', color: '#fff', border: 'none', fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {copied ? 'COPIED ✓' : 'COPY FOR NAVER →'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (articleMode === "intro") {
-                          setIntroCompletion("");
-                          setStep(2);
-                        } else {
-                          setMenuCompletion("");
-                          setStep(1);
-                        }
-                      }}
-                      className="px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      再生成
-                    </button>
+                      onClick={() => { if (articleMode === 'intro') setIntroCompletion(''); else setMenuCompletion(''); }}
+                      style={{ padding: '12px 16px', background: '#fff', border: '0.5px solid #d8d6d0', color: '#1a1a1a', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                    >RETRY</button>
                   </div>
-                  <p className="text-xs text-gray-400 text-center">※Naverブログのエディタに貼り付けるとリンクが有効になります</p>
-                  <button
-                    onClick={() => {
-                      setHistory(lsGetHistory());
-                      setViewingHistory(null);
-                      setShowHistory(true);
-                    }}
-                    className="w-full py-3 rounded-xl text-sm font-medium transition-colors"
-                    style={{ border: `1px solid ${accentHex}`, color: accentHex, background: "white" }}
-                  >
-                    履歴を見る
-                  </button>
+                  <p style={{ fontSize: '9px', color: '#888', textAlign: 'center', letterSpacing: '0.04em' }}>Naverブログのエディタに貼り付けるとリンクが有効になります</p>
                 </div>
               )}
-            </section>
-
+            </div>
           </div>
         )}
       </main>
 
-      {/* History Modal */}
-      {showHistory && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowHistory(false);
-              setViewingHistory(null);
-            }
-          }}
-        >
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <h2 className="font-semibold text-gray-800">生成履歴</h2>
-              <button
-                onClick={() => {
-                  setShowHistory(false);
-                  setViewingHistory(null);
-                }}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                ✕
-              </button>
+      {/* BOTTOM BAR */}
+      <footer style={{ background: '#1a1a1a', borderTop: '0.5px solid #2a2a2a', position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: '640px', margin: '0 auto', padding: '8px 24px', display: 'flex', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
+          {([
+            { label: 'TODAY', value: `${todayCount} articles` },
+            { label: 'THIS MONTH', value: `¥${Math.ceil(thisMonth.costUSD * USD_TO_JPY).toLocaleString()}` },
+            { label: 'TOTAL', value: `${stats?.totalGenerations ?? 0} articles` },
+          ] as { label: string; value: string }[]).map(({ label, value }) => (
+            <div key={label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: '#555', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#e8a020', letterSpacing: '0.04em' }}>{value}</div>
             </div>
+          ))}
+        </div>
+      </footer>
 
+      {/* HISTORY MODAL */}
+      {showHistory && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px' }} onClick={(e) => { if (e.target === e.currentTarget) { setShowHistory(false); setViewingHistory(null); } }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '640px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '0.5px solid #d8d6d0' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '0.5px solid #d8d6d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>HISTORY</span>
+              <button onClick={() => { setShowHistory(false); setViewingHistory(null); }} style={{ fontSize: '16px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+            </div>
             {viewingHistory ? (
               <>
-                <div className="px-6 py-3 border-b border-gray-100 flex-shrink-0">
-                  <button
-                    onClick={() => setViewingHistory(null)}
-                    className="text-indigo-600 text-sm hover:text-indigo-800"
-                  >
-                    ← 一覧に戻る
-                  </button>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {viewingHistory.storeName} · {getToneLabel(viewingHistory.tone)} · {getLangLabel(viewingHistory.language)} · {formatDateTime(viewingHistory.createdAt)}
-                  </p>
+                <div style={{ padding: '12px 20px', borderBottom: '0.5px solid #d8d6d0', flexShrink: 0 }}>
+                  <button onClick={() => setViewingHistory(null)} style={{ fontSize: '10px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.06em', textTransform: 'uppercase' }}>← BACK</button>
+                  <p style={{ fontSize: '10px', color: '#888', marginTop: '4px' }}>{viewingHistory.storeName} · {getToneLabel(viewingHistory.tone)} · {getLangLabel(viewingHistory.language)} · {formatDateTime(viewingHistory.createdAt)}</p>
                 </div>
-                <div className="flex-1 overflow-y-auto px-6 py-4">
-                  <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
-                    {viewingHistory.article}
-                  </p>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+                  <p style={{ fontSize: '13px', color: '#1a1a1a', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{viewingHistory.article}</p>
                 </div>
-                <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0 space-y-2">
-                  <button
-                    onClick={() => restoreFromHistory(viewingHistory)}
-                    className="w-full py-2.5 rounded-xl text-white text-sm font-medium transition-opacity"
-                    style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}
-                  >
-                    この内容を復元して表示
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(viewingHistory.article);
-                      setHistoryCopied(true);
-                      setTimeout(() => setHistoryCopied(false), 2000);
-                    }}
-                    className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-                  >
-                    {historyCopied ? "✓ コピーしました" : "📋 この記事をコピー"}
+                <div style={{ padding: '16px 20px', borderTop: '0.5px solid #d8d6d0', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button onClick={() => restoreFromHistory(viewingHistory)} style={{ width: '100%', padding: '11px', background: '#1a1a1a', color: '#fff', border: 'none', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>RESTORE →</button>
+                  <button onClick={async () => { await navigator.clipboard.writeText(viewingHistory.article); setHistoryCopied(true); setTimeout(() => setHistoryCopied(false), 2000); }} style={{ width: '100%', padding: '11px', background: '#fff', color: '#1a1a1a', border: '0.5px solid #d8d6d0', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {historyCopied ? 'COPIED ✓' : 'COPY ARTICLE'}
                   </button>
                 </div>
               </>
             ) : (
-              <div className="flex-1 overflow-y-auto">
+              <div style={{ flex: 1, overflowY: 'auto' }}>
                 {history.length === 0 ? (
-                  <div className="px-6 py-10 text-center text-gray-400 text-sm">
-                    履歴はありません
-                  </div>
+                  <div style={{ padding: '40px 20px', textAlign: 'center', fontSize: '11px', color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>NO HISTORY YET</div>
                 ) : (
-                  <ul className="divide-y divide-gray-100">
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                     {history.map((entry) => (
-                      <li key={entry.id}>
-                        <button
-                          className="w-full px-6 py-4 text-left hover:bg-gray-50 transition-colors"
-                          onClick={() => setViewingHistory(entry)}
-                        >
-                          <p className="font-medium text-sm text-gray-800">
-                            {entry.storeName}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {getToneLabel(entry.tone)} · {getLangLabel(entry.language)} · {formatDateTime(entry.createdAt)}
-                          </p>
+                      <li key={entry.id} style={{ borderBottom: '0.5px solid #d8d6d0' }}>
+                        <button style={{ width: '100%', padding: '14px 20px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => setViewingHistory(entry)}>
+                          <p style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a', marginBottom: '3px' }}>{entry.storeName}</p>
+                          <p style={{ fontSize: '10px', color: '#888' }}>{getToneLabel(entry.tone)} · {getLangLabel(entry.language)} · {formatDateTime(entry.createdAt)}</p>
                         </button>
                       </li>
                     ))}
@@ -1371,113 +1040,54 @@ export default function Home() {
         </div>
       )}
 
-      {/* Delete store confirmation modal */}
+      {/* DELETE CONFIRM */}
       {showDeleteConfirm && selectedStoreId && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
-        >
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 space-y-4">
-            <p className="font-semibold text-gray-900 text-center">
-              「{stores.find((s) => s.id === selectedStoreId)?.name ?? "この店舗"}」を削除しますか？
-            </p>
-            <p className="text-sm text-gray-500 text-center">この操作は取り消せません。</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={deleteCurrentStore}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
-              >
-                削除する
-              </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '360px', border: '0.5px solid #d8d6d0', padding: '24px' }}>
+            <p style={{ fontSize: '13px', fontWeight: 700, textAlign: 'center', marginBottom: '8px' }}>DELETE STORE?</p>
+            <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', marginBottom: '20px' }}>「{stores.find((s) => s.id === selectedStoreId)?.name ?? 'この店舗'}」を削除します。この操作は取り消せません。</p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1, padding: '11px', background: '#fff', border: '0.5px solid #d8d6d0', color: '#1a1a1a', fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>CANCEL</button>
+              <button onClick={deleteCurrentStore} style={{ flex: 1, padding: '11px', background: '#1a1a1a', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>DELETE</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Stats Modal */}
+      {/* STATS MODAL */}
       {showStats && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowStats(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <h2 className="font-semibold text-gray-800">利用統計</h2>
-              <button
-                onClick={() => setShowStats(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                ✕
-              </button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px' }} onClick={(e) => { if (e.target === e.currentTarget) setShowStats(false); }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '640px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', border: '0.5px solid #d8d6d0' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '0.5px solid #d8d6d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>STATS</span>
+              <button onClick={() => setShowStats(false)} style={{ fontSize: '16px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
             </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              {/* Totals */}
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">累計</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {stats?.totalGenerations ?? 0}
-                      <span className="text-sm font-normal text-gray-500 ml-1">回</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">生成回数</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-2xl font-bold text-gray-900">
-                      ¥{Math.ceil((stats?.totalCostUSD ?? 0) * USD_TO_JPY).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      ${((stats?.totalCostUSD ?? 0)).toFixed(4)} USD
-                    </p>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {([{ heading: 'TOTAL', count: stats?.totalGenerations ?? 0, cost: stats?.totalCostUSD ?? 0 }, { heading: 'THIS MONTH', count: thisMonth.count, cost: thisMonth.costUSD }] as { heading: string; count: number; cost: number }[]).map(({ heading, count, cost }) => (
+                <div key={heading}>
+                  <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#888', marginBottom: '10px' }}>{heading}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div style={{ background: '#f5f4f0', border: '0.5px solid #d8d6d0', padding: '16px' }}>
+                      <p style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{count}<span style={{ fontSize: '12px', fontWeight: 400, color: '#888', marginLeft: '4px' }}>回</span></p>
+                      <p style={{ fontSize: '9px', color: '#888', marginTop: '4px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>GENERATIONS</p>
+                    </div>
+                    <div style={{ background: '#f5f4f0', border: '0.5px solid #d8d6d0', padding: '16px' }}>
+                      <p style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>¥{Math.ceil(cost * USD_TO_JPY).toLocaleString()}</p>
+                      <p style={{ fontSize: '9px', color: '#888', marginTop: '4px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>COST</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* This month */}
+              ))}
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">今月</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {thisMonth.count}
-                      <span className="text-sm font-normal text-gray-500 ml-1">回</span>
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">生成回数</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-2xl font-bold text-gray-900">
-                      ¥{Math.ceil(thisMonth.costUSD * USD_TO_JPY).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      ${thisMonth.costUSD.toFixed(4)} USD
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Last 7 days bar chart */}
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">直近7日間の生成回数</p>
-                <div className="space-y-2">
+                <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#888', marginBottom: '10px' }}>LAST 7 DAYS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {last7Days.map(({ label, count }) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400 w-10 shrink-0 text-right">{label}</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
-                        <div
-                          className="bg-indigo-400 h-full rounded-full transition-all duration-300"
-                          style={{ width: `${(count / maxDayCount) * 100}%` }}
-                        />
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '10px', color: '#888', width: '36px', textAlign: 'right', flexShrink: 0 }}>{label}</span>
+                      <div style={{ flex: 1, height: '4px', background: '#ece9e3', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${(count / maxDayCount) * 100}%`, background: '#e8a020' }} />
                       </div>
-                      <span className="text-xs text-gray-600 w-4 text-right shrink-0">{count}</span>
+                      <span style={{ fontSize: '10px', color: '#888', width: '16px', textAlign: 'right', flexShrink: 0 }}>{count}</span>
                     </div>
                   ))}
                 </div>
@@ -1486,76 +1096,39 @@ export default function Home() {
           </div>
         </div>
       )}
-      {/* Loading overlay */}
+
+      {/* LOADING OVERLAY */}
       {isLoading && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            zIndex: 50,
-            background: "rgba(255,255,255,0.85)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: "16px",
-              padding: "24px 32px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "12px",
-            }}
-          >
-            <div className="article-spinner" style={{ borderTopColor: accentHex }} />
-            <p style={{ fontSize: "16px", color: accentHex, fontWeight: 500 }}>✨ 記事を生成中...</p>
-            <p style={{ fontSize: "12px", color: "#9ca3af" }}>しばらくお待ちください</p>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 50, background: 'rgba(245,244,240,0.92)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', border: '0.5px solid #d8d6d0', padding: '28px 36px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <div className="lst-spinner" />
+            <p style={{ fontSize: '11px', fontWeight: 700, color: '#1a1a1a', letterSpacing: '0.14em', textTransform: 'uppercase' }}>GENERATING ARTICLE</p>
+            <p style={{ fontSize: '10px', color: '#888', letterSpacing: '0.06em', textTransform: 'uppercase' }}>PLEASE WAIT...</p>
           </div>
         </div>
       )}
 
-      {/* Completion toast */}
+      {/* TOAST */}
       {showToast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "32px",
-            left: "50%",
-            zIndex: 100,
-            background: accentHex,
-            color: "white",
-            borderRadius: "24px",
-            padding: "12px 24px",
-            fontSize: "14px",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-            animation: "toastSlide 2.5s ease-out forwards",
-          }}
-        >
-          🎉 記事できたっぽいよ！
+        <div style={{ position: 'fixed', bottom: '56px', left: '50%', zIndex: 100, background: '#1a1a1a', color: '#e8a020', border: '0.5px solid #e8a020', padding: '10px 20px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', animation: 'toastSlide 2.5s ease-out forwards' }}>
+          ARTICLE READY ✓
         </div>
       )}
 
       <style>{`
-        .article-spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid #e5e7eb;
-          border-top-color: var(--accent-color, #4f46e5);
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
+        * { box-sizing: border-box; }
+        input, textarea, select, button { font-family: 'Space Grotesk', sans-serif; }
+        input::placeholder, textarea::placeholder { color: #aaa; }
+        .lst-spinner {
+          width: 32px; height: 32px;
+          border: 2px solid #d8d6d0;
+          border-top-color: #e8a020;
           border-radius: 50%;
-          animation: articleSpin 0.8s linear infinite;
+          animation: lstSpin 0.8s linear infinite;
         }
-        @keyframes articleSpin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes lstSpin { to { transform: rotate(360deg); } }
+        @keyframes lstBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         @keyframes toastSlide {
           0%   { opacity: 0; transform: translateX(-50%) translateY(20px); }
           15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
